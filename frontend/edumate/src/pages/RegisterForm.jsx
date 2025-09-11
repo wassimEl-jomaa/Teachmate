@@ -3,30 +3,30 @@ import { useNavigate } from "react-router-dom"; // Import useNavigate for progra
 
 const RegisterForm = () => {
   const navigate = useNavigate(); // Initialize the useNavigate hook
-
-  // Create state for form data
+  // Skapa state för formulärdata
   const [formData, setFormData] = useState({
-    first_name: "",
-    last_name: "",
+    name: "",
     email: "",
-    phone_number: "",
     password: "",
     confirmPassword: "",
+<<<<<<< HEAD
     role_id: "",
     address: "",
     postal_code: "",
     city: "",
     country: "",
+=======
+>>>>>>> parent of b8e1959 (FIX same Buge   after i have update the tables i Database)
   });
 
-  // Create a state for any error messages
+  // Skapa en state för eventuella fel
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
   // Add a state for the form key
   const [formKey, setFormKey] = useState(0); // Initialize formKey state
 
-  // Handle form changes
+  // Hantera formulärändringar
   const handleChange = (e) => {
     const { name, value } = e.target;
     console.log(`Field: ${name}, Value: ${value}`); // Debugging log
@@ -36,12 +36,16 @@ const RegisterForm = () => {
     });
   };
 
-  // Handle form submission
+  // Hantera form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match.");
+      setError("Lösenorden matchar inte.");
     } else {
+<<<<<<< HEAD
+=======
+      // Här kan du skicka formuläruppgifter till en server eller API
+>>>>>>> parent of b8e1959 (FIX same Buge   after i have update the tables i Database)
       const data = {
         username:
           formData.first_name.substring(0, 3) +
@@ -51,6 +55,7 @@ const RegisterForm = () => {
         email: formData.email,
         password: formData.password,
         phone_number: formData.phone_number,
+<<<<<<< HEAD
         role_id: formData.role_id, // Ensure role_id is included
         address: formData.address,
         postal_code: formData.postal_code,
@@ -60,19 +65,24 @@ const RegisterForm = () => {
 
       console.log("Data sent to backend:", data); // Debugging log
 
+=======
+      };
+>>>>>>> parent of b8e1959 (FIX same Buge   after i have update the tables i Database)
       const options = {
         headers: { "Content-Type": "application/json" },
         method: "POST",
         mode: "cors",
         body: JSON.stringify(data),
       };
-
       try {
         const result = await fetch(`http://localhost:8000/users/`, options);
         if (!result.ok) {
           const errorData = await result.json();
-          throw new Error(errorData.detail || "Failed to create user.");
+          throw new Error(
+            errorData.detail || "Det gick inte att skapa användaren."
+          );
         }
+<<<<<<< HEAD
         alert("User created!");
         setFormData({
           first_name: "",
@@ -88,6 +98,9 @@ const RegisterForm = () => {
           country: "",
         });
         setFormKey((prevKey) => prevKey + 1);
+=======
+        alert("Användare skapades!");
+>>>>>>> parent of b8e1959 (FIX same Buge   after i have update the tables i Database)
         navigate("/login");
       } catch (error) {
         console.error("Error creating user:", error.message);
@@ -100,18 +113,24 @@ const RegisterForm = () => {
     <main className="container mx-auto px-6 py-10">
       <div className="max-w-3xl mx-auto bg-white p-8 border rounded-lg shadow-md">
         <h2 className="text-3xl font-semibold text-center mb-6">
-          Create an Account
+          Skapa ett Konto
         </h2>
         {error && <div className="text-red-500 text-center mb-4">{error}</div>}
+<<<<<<< HEAD
 
         <form key={formKey} onSubmit={handleSubmit} className="space-y-6">
           {/* First Name */}
           <div>
+=======
+        <form onSubmit={handleSubmit}>
+          {/* Namn */}
+          <div className="mb-4">
+>>>>>>> parent of b8e1959 (FIX same Buge   after i have update the tables i Database)
             <label
               htmlFor="first_name"
               className="block text-gray-700 font-semibold"
             >
-              First Name
+              Förnamn
             </label>
             <input
               type="text"
@@ -124,13 +143,17 @@ const RegisterForm = () => {
             />
           </div>
 
+<<<<<<< HEAD
           {/* Last Name */}
           <div>
+=======
+          <div className="mb-4">
+>>>>>>> parent of b8e1959 (FIX same Buge   after i have update the tables i Database)
             <label
               htmlFor="last_name"
               className="block text-gray-700 font-semibold"
             >
-              Last Name
+              Efternamn
             </label>
             <input
               type="text"
@@ -143,13 +166,18 @@ const RegisterForm = () => {
             />
           </div>
 
+<<<<<<< HEAD
           {/* Email */}
           <div>
+=======
+          {/* E-post */}
+          <div className="mb-4">
+>>>>>>> parent of b8e1959 (FIX same Buge   after i have update the tables i Database)
             <label
               htmlFor="email"
               className="block text-gray-700 font-semibold"
             >
-              Email
+              E-post
             </label>
             <input
               type="email"
@@ -163,13 +191,18 @@ const RegisterForm = () => {
             />
           </div>
 
+<<<<<<< HEAD
           {/* Phone Number */}
           <div>
+=======
+          {/* Telefonnummer */}
+          <div className="mb-4">
+>>>>>>> parent of b8e1959 (FIX same Buge   after i have update the tables i Database)
             <label
               htmlFor="phone_number"
               className="block text-gray-700 font-semibold"
             >
-              Phone Number
+              Telefonnummer
             </label>
             <input
               type="tel"
@@ -182,13 +215,18 @@ const RegisterForm = () => {
             />
           </div>
 
+<<<<<<< HEAD
           {/* Password */}
           <div>
+=======
+          {/* Lösenord */}
+          <div className="mb-4">
+>>>>>>> parent of b8e1959 (FIX same Buge   after i have update the tables i Database)
             <label
               htmlFor="password"
               className="block text-gray-700 font-semibold"
             >
-              Password
+              Lösenord
             </label>
             <input
               type={showPassword ? "text" : "password"}
@@ -213,13 +251,18 @@ const RegisterForm = () => {
             </div>
           </div>
 
+<<<<<<< HEAD
           {/* Confirm Password */}
           <div>
+=======
+          {/* Bekräfta Lösenord */}
+          <div className="mb-4">
+>>>>>>> parent of b8e1959 (FIX same Buge   after i have update the tables i Database)
             <label
               htmlFor="confirmPassword"
               className="block text-gray-700 font-semibold"
             >
-              Confirm Password
+              Bekräfta Lösenord
             </label>
             <input
               type="password"
@@ -232,6 +275,7 @@ const RegisterForm = () => {
             />
           </div>
 
+<<<<<<< HEAD
           {/* Role */}
           <div>
             <label
@@ -324,22 +368,24 @@ const RegisterForm = () => {
             />
           </div>
 
+=======
+>>>>>>> parent of b8e1959 (FIX same Buge   after i have update the tables i Database)
           {/* Submit Button */}
           <div className="flex justify-center">
             <button
               type="submit"
               className="bg-yellow-500 text-white py-2 px-6 rounded-md hover:bg-yellow-600 transition-all"
             >
-              Register
+              Registrera
             </button>
           </div>
         </form>
 
         <div className="mt-4 text-center">
           <p className="text-sm text-gray-700">
-            Already have an account?{" "}
+            Har du redan ett konto?{" "}
             <a href="/login" className="text-blue-500 hover:text-blue-700">
-              Log in here
+              Logga in här
             </a>
           </p>
         </div>
