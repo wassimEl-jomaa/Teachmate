@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from typing import List
-from fastapi import FastAPI, HTTPException, Depends, Security, status
+from fastapi import FastAPI, HTTPException, Depends, Security, status, Response
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi import Query
@@ -1500,7 +1500,7 @@ def add_student_homework(
     db.commit()
     db.refresh(new_student_homework)
     return new_student_homework
- 
+
 @app.get("/student_homeworks", response_model=List[StudentHomeworkOut])
 def get_all_student_homeworks(
     current_user: User = Depends(get_current_user),  # Token validation and user authentication
@@ -1521,8 +1521,24 @@ def get_all_student_homeworks(
 
     return student_homeworks
  # Create router for student_homeworks
-student_hw_router = APIRouter(prefix="/student_homeworks", tags=["student_homeworks"])
+student_hw_router = APIRouter(prefix="/student_homeworks", tags=["Student Homeworks"])
+@student_hw_router.delete("/{student_homework_id}", status_code=204)
+def delete_student_homework(
+    student_homework_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    sh = db.query(Student_Homework).filter(Student_Homework.id == student_homework_id).first()
+    if not sh:
+        raise HTTPException(status_code=404, detail="Student_Homework not found")
 
+    is_owner = sh.student and sh.student.user_id == current_user.id
+    if current_user.role.name not in ("Admin", "Teacher") and not is_owner:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    db.delete(sh)
+    db.commit()
+    return Response(status_code=204)
 @student_hw_router.patch("/{student_homework_id}", response_model=StudentHomeworkOut)
 def mark_student_homework_complete(
     student_homework_id: int,
