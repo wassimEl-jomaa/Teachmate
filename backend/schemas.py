@@ -1,7 +1,11 @@
 from pydantic import BaseModel, field_validator, model_validator
+from pydantic import ConfigDict
 from typing import List, Optional, Union
 from datetime import date, datetime
-
+from enum import Enum
+from typing import Literal
+from pydantic import Field
+from typing import Optional
 
 class GetUser(BaseModel):
     email: str
@@ -202,40 +206,74 @@ class GuardianOut(BaseModel):
     user: Optional["UserOut"] = None  # Assuming you have a UserOut model to represent the user
     class Config:
         from_attributes = True 
-class HomeworkCreate(BaseModel):
-    title: str
-    description: str
-    due_date: date
-    priority: Optional[str] = "Normal"
-    status: Optional[str] = "Pending"
-    subject_class_level_id: int        
+class HomeworkStatus(str, Enum):
+    pending = "pending"
+    completed = "completed"
+
+class HomeworkPriority(str, Enum):
+    Low = "Low"
+    Normal = "Normal"
+    High = "High"    
+
 class HomeworkBase(BaseModel):
     title: str
     description: str
     due_date: date
+    priority: HomeworkPriority = HomeworkPriority.Normal
+    status: HomeworkStatus
+    completed_at: datetime | None = None
+    subject_class_level_id: int
+
+class HomeworkCreate(BaseModel):
+    title: str
+    description: str
+    due_date: date                       # must be "YYYY-MM-DD"
     priority: Optional[str] = "Normal"
-    status: Optional[str] = "Pending"
-    subject_class_level_id: int       
+    status: str = "pending"              # accept any case, normalize below
+    subject_class_level_id: int
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def normalize_status(cls, v):
+        if v is None:
+            return "pending"
+        s = str(v).strip().lower()
+        if s not in {"pending", "completed"}:
+            raise ValueError("status must be 'pending' or 'completed'")
+        return s
+
+
 class HomeworkUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     due_date: Optional[date] = None
     priority: Optional[str] = None
     status: Optional[str] = None
-class HomeworkOut(HomeworkBase):
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def normalize_status_update(cls, v):
+        if v is None:
+            return v
+        s = str(v).strip().lower()
+        if s not in {"pending", "completed"}:
+            raise ValueError("status must be 'pending' or 'completed'")
+        return s
+
+class HomeworkOut(BaseModel):
     id: int
     title: str
     description: str
     due_date: date
-    priority: str
     status: str
+    priority: str
+    completed_at: Optional[datetime] = None
     subject_class_level_id: int
-    subject_class_level: Optional["SubjectClassLevelOut"] = None  # Include the SubjectClassLevel relationship
-
-   
+    file_attachment_id: Optional[int] = None
 
     class Config:
-        from_attributes = True    
+        from_attributes = True
+  
 
 class SubjectClassLevelBase(BaseModel):
     id: int
@@ -283,44 +321,35 @@ class GradeUpdate(BaseModel):
     grade: Optional[str] = None
     description: Optional[str] = None
     feedback: Optional[str] = None    
-class StudentHomeworkBase(BaseModel):
-    id: int
+
+
+class StudentHomeworkCreate(BaseModel):
     student_id: int
     homework_id: int
-    file_attachement_id: Optional[int] = None  
-    class Config:
-        from_attributes = True   
+    file_attachment_id: Optional[int] = Field(
+        default=None, description="Optional File_Attachment.id"
+    )
 
+class StudentHomeworkBase(BaseModel):
+    student_id: int
+    homework_id: int
+    file_attachment_id: Optional[int] = None
 
+class StudentHomeworkUpdate(BaseModel):
+    student_id: Optional[int] = None
+    homework_id: Optional[int] = None
+    file_attachment_id: Optional[int] = None
 
-class StudentOut(StudentBase):
-    id: int
-    class_level_id: Optional[int] = None   
-    user: Optional["UserIn"] = None    
-    class_level: Optional["ClassLevelBase"] = None  # Include the ClassLevel relationship
-    class Config:
-        from_attributes = True     
 class StudentHomeworkOut(BaseModel):
     id: int
     student_id: int
     homework_id: int
-    file_attachement_id: Optional[int]
-    student: Optional[StudentOut]  # Include the Student relationship
-    homework: Optional[HomeworkOut]  # Include the Homework relationship
-
-    
+    file_attachment_id: Optional[int] = None
+    homework: Optional[HomeworkOut] = None
+    student: Optional[StudentOut] = None
 
     class Config:
-        from_attributes = True                       
-class StudentHomeworkCreate(BaseModel):
-    student_id: int
-    homework_id: int
-    file_attachement_id: Optional[int] = None     
-class StudentHomeworkUpdate(BaseModel):
-    student_id: Optional[int] = None
-    homework_id: Optional[int] = None
-    file_attachement_id: Optional[int] = None  
-
+        from_attributes = True
 class FileAttachmentBase(BaseModel):
     id: int
     file_name: str

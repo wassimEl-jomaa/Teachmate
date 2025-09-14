@@ -47,12 +47,12 @@ class Student_Homework(Base):
     id = Column(Integer, primary_key=True, index=True)
     student_id = Column(Integer, ForeignKey("student.id", ondelete="CASCADE"))
     homework_id = Column(Integer, ForeignKey("homework.id", ondelete="CASCADE"))
-    file_attachement_id = Column(Integer, ForeignKey("file_attachment.id", ondelete="CASCADE"))
+    file_attachment_id = Column(Integer, ForeignKey("file_attachment.id", ondelete="CASCADE"))  # ✅ fixed spelling
 
-    student = relationship("Student", back_populates="student_homework")  # Use back_populates
+    student = relationship("Student", back_populates="student_homework")
     homework = relationship("Homework", back_populates="student_homework")
-    file_attachment = relationship("File_Attachment", back_populates="student_homework")  # Use back_populates
-    grade = relationship("Grade", back_populates="student_homework")  # Use back_populates
+    file_attachment = relationship("File_Attachment", back_populates="student_homework")
+    grade = relationship("Grade", back_populates="student_homework")
 
 class Guardian(Base):
     __tablename__ = "guardian"
@@ -97,18 +97,36 @@ class Student(Base):
     __tablename__ = "student"
 
     id = Column(Integer, primary_key=True, index=True)
-    date_of_birth = Column(Date, nullable=False)  # Student's date of birth
-    user_id = Column(Integer, ForeignKey("user.id", ondelete="CASCADE"), nullable=False)  # Foreign key to User table
-    class_level_id = Column(Integer, ForeignKey("class_level.id", ondelete="SET NULL"), nullable=True)  # Foreign key to Arskurs table
+    date_of_birth = Column(Date, nullable=False)
+    user_id = Column(Integer, ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
+    class_level_id = Column(Integer, ForeignKey("class_level.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
-    # Relationships
-    user = relationship("User", back_populates="student")  # One-to-one relationship with User
-    class_level = relationship("Class_Level", back_populates="student")  # Many-to-one relationship with Arskurs
-    homework = relationship("Homework", secondary="student_homework", back_populates="student", overlaps="student, homework")  # Many-to-one relationship with Arskurs
-    student_homework = relationship("Student_Homework", back_populates="student", overlaps="homework, student")  # Many-to-one relationship with Arskurs
-    guardian = relationship("Guardian", back_populates="student")  # Many-to-one relationship with Guardian
+    # --- Relationships ---
+    # 1) One-to-one profile link
+    user = relationship("User", back_populates="student")
+
+    # 2) Belongs to a class level
+    class_level = relationship("Class_Level", back_populates="student")
+
+    # 3) Many-to-many with Homework via the association table student_homework
+    homework = relationship(
+        "Homework",
+        secondary="student_homework",
+        back_populates="student",
+        overlaps="student,homework,student_homework",  # symmetric with Homework.student
+    )
+
+    # 4) Direct access to the association rows
+    student_homework = relationship(
+        "Student_Homework",
+        back_populates="student",
+        overlaps="homework,student",  # symmetric with Student_Homework.student & Homework.student
+    )
+
+    # 5) Guardians (parent-student links)
+    guardian = relationship("Guardian", back_populates="student")
 
 class Parent(Base):
     __tablename__ = "parent"
@@ -142,20 +160,53 @@ class Homework(Base):
     __tablename__ = "homework"
 
     id = Column(Integer, primary_key=True, index=True)
-    title = Column(String, index=True)
-    description = Column(String)
-    due_date = Column(Date)
-    status = Column(String, default="Pending")
-    priority = Column(String, default="Normal")
-    subject_class_level_id = Column(Integer, ForeignKey("subject_class_level.id"))  # Foreign key referencing the Subject table
-    file_attachment_id = Column(Integer, ForeignKey("file_attachment.id"))  # Foreign key referencing the Subject table
+    title = Column(String, index=True, nullable=False)
+    description = Column(String, nullable=False)
+    due_date = Column(Date, nullable=False)
 
-    # Direct reference to Teacher table
-    subject_class_level = relationship("Subject_Class_Level", back_populates="homework")  # Use back_populates
-    student = relationship("Student", secondary="student_homework", back_populates="homework", overlaps="student_homework, homework")  # Use back_populates
+    # Canonical lower-case status; keep DB default consistent with schemas
+    status = Column(String, nullable=False, default="pending")
+    priority = Column(String, nullable=False, default="Normal")
 
-    file_attachment = relationship("File_Attachment", back_populates="homework", uselist=False)
-    student_homework = relationship("Student_Homework", back_populates="homework", overlaps="homework,student")  # Use back_populates
+    # Set when status becomes 'completed'
+    completed_at = Column(DateTime, nullable=True)
+
+    # FKs
+    subject_class_level_id = Column(
+        Integer, ForeignKey("subject_class_level.id"), nullable=False
+    )
+    file_attachment_id = Column(
+        Integer, ForeignKey("file_attachment.id")
+    )
+
+    # Relationships
+    subject_class_level = relationship(
+        "Subject_Class_Level",
+        back_populates="homework",
+        overlaps="subject_class_level,subject,class_level"
+    )
+
+    # Many-to-many: Homework <-> Student via student_homework
+    student = relationship(
+        "Student",
+        secondary="student_homework",
+        back_populates="homework",
+        overlaps="student_homework,homework,student"  # add "student" to silence SAWarning
+    )
+
+    # One-to-one/optional file attachment
+    file_attachment = relationship(
+        "File_Attachment",
+        back_populates="homework",
+        uselist=False
+    )
+
+    # One-to-many to the association rows
+    student_homework = relationship(
+        "Student_Homework",
+        back_populates="homework",
+        overlaps="homework,student"
+    )
 
 class Subject(Base):
     __tablename__ = "subject"
@@ -163,36 +214,78 @@ class Subject(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
 
-    # Direct reference to Teacher table
-    class_level = relationship("Class_Level", secondary="subject_class_level", back_populates="subject")  # Use back_populates
-    recommended_resource = relationship("Recommended_Resource", back_populates="subject")  # Use back_populates
+    # Many-to-many via subject_class_level
+    # (Class_Level has the symmetric relationship above)
+    class_level = relationship(
+        "Class_Level",
+        secondary="subject_class_level",
+        back_populates="subject",
+        overlaps="subject_class_level,subject,class_level"
+    )
+
+    # Subject <-> Recommended_Resource
+    recommended_resource = relationship(
+        "Recommended_Resource",
+        back_populates="subject"
+    )
 class Subject_Class_Level(Base):
     __tablename__ = "subject_class_level"
 
     id = Column(Integer, primary_key=True, index=True)
-    class_level_id = Column(Integer, ForeignKey("class_level.id", ondelete="CASCADE"))
-    subject_id = Column(Integer, ForeignKey("subject.id", ondelete="CASCADE"))
-    teacher_id = Column(Integer, ForeignKey("teacher.id", ondelete="CASCADE"))
-    
-    class_level = relationship('Class_Level', backref='subject_class_level')
-    subject = relationship('Subject', backref='subject_class_level')
-    teacher = relationship('Teacher', back_populates='subject_class_level')
-    homework = relationship("Homework", back_populates="subject_class_level")  # Use back_populates    
+    class_level_id = Column(Integer, ForeignKey("class_level.id", ondelete="CASCADE"), nullable=False)
+    subject_id = Column(Integer, ForeignKey("subject.id", ondelete="CASCADE"), nullable=False)
+    teacher_id = Column(Integer, ForeignKey("teacher.id", ondelete="CASCADE"), nullable=False)
+
+    # Optional but helpful: prevent accidental duplicate rows for the same triple
+    __table_args__ = (
+        UniqueConstraint("class_level_id", "subject_id", "teacher_id", name="uq_scl_class_subject_teacher"),
+    )
+
+    # Relationships
+    # Using backref keeps your existing Class_Level.subject_class_level and Subject.subject_class_level
+    class_level = relationship(
+        "Class_Level",
+        backref="subject_class_level",
+        overlaps="class_level,subject,subject_class_level"
+    )
+    subject = relationship(
+        "Subject",
+        backref="subject_class_level",
+        overlaps="subject,class_level,subject_class_level"
+    )
+
+    # Teacher already has: subject_class_level = relationship("Subject_Class_Level", back_populates="teacher")
+    teacher = relationship("Teacher", back_populates="subject_class_level")
+
+    # Homework already has: subject_class_level = relationship("Subject_Class_Level", back_populates="homework")
+    homework = relationship("Homework", back_populates="subject_class_level")
 class Class_Level(Base):
     __tablename__ = "class_level"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
-    school_id = Column(Integer, ForeignKey("school.id"), nullable=True)  # Foreign key to School table
+    school_id = Column(Integer, ForeignKey("school.id"), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
 
-    # Define the relationship to the School model
+    # School <-> Class_Level
     school = relationship("School", back_populates="class_level")
-    subject = relationship("Subject", secondary="subject_class_level", back_populates="class_level")  # Many-to-one relationship with Arskurs
-    student = relationship("Student", back_populates="class_level")  # Add this relationship   
+
+    # Class_Level <-> Student
+    student = relationship("Student", back_populates="class_level")
+
+    # Many-to-many via subject_class_level
+    # (Subject has the symmetric relationship below)
+    subject = relationship(
+        "Subject",
+        secondary="subject_class_level",
+        back_populates="class_level",
+        overlaps="subject_class_level,subject,class_level"
+    )
  
 class Grade(Base):
     __tablename__ = "grade"

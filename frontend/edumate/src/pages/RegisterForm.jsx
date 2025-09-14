@@ -1,136 +1,117 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom"; // Import useNavigate for programmatic routing
+import { useNavigate } from "react-router-dom";
 
 const RegisterForm = () => {
-  const navigate = useNavigate(); // Initialize the useNavigate hook
-  // Skapa state för formulärdata
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    name: "",
+    first_name: "",
+    last_name: "",
     email: "",
+    phone_number: "",
     password: "",
     confirmPassword: "",
-<<<<<<< HEAD
-    role_id: "",
+    role_id: "",         // string from <select>, we’ll cast to number on submit
     address: "",
     postal_code: "",
     city: "",
     country: "",
-=======
->>>>>>> parent of b8e1959 (FIX same Buge   after i have update the tables i Database)
   });
-
-  // Skapa en state för eventuella fel
   const [error, setError] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  // Add a state for the form key
-  const [formKey, setFormKey] = useState(0); // Initialize formKey state
-
-  // Hantera formulärändringar
   const handleChange = (e) => {
     const { name, value } = e.target;
-    console.log(`Field: ${name}, Value: ${value}`); // Debugging log
-    setFormData({
-      ...formData,
-      [name]: value,
-    });
+    setFormData((s) => ({ ...s, [name]: value }));
   };
 
-  // Hantera form submission
+  const makeUsername = (first, last) => {
+    const f = (first || "").trim().toLowerCase();
+    const l = (last || "").trim().toLowerCase();
+    // simple, deterministic username; tweak as you like
+    return (f.slice(0, 3) + l.slice(0, 3)) || (f || l) || "user";
+  };
+
+  const parseFastApiError = async (res) => {
+    let err = {};
+    try {
+      err = await res.json();
+    } catch {
+      // ignore json parse error
+    }
+    if (!err || !err.detail) return "Failed to create user.";
+    // detail can be string or list of {msg,...}
+    if (Array.isArray(err.detail)) {
+      return err.detail.map((d) => d.msg || JSON.stringify(d)).join("; ");
+    }
+    return err.detail;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
+
     if (formData.password !== formData.confirmPassword) {
-      setError("Lösenorden matchar inte.");
-    } else {
-<<<<<<< HEAD
-=======
-      // Här kan du skicka formuläruppgifter till en server eller API
->>>>>>> parent of b8e1959 (FIX same Buge   after i have update the tables i Database)
-      const data = {
-        username:
-          formData.first_name.substring(0, 3) +
-          formData.last_name.substring(0, 3),
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        email: formData.email,
-        password: formData.password,
-        phone_number: formData.phone_number,
-<<<<<<< HEAD
-        role_id: formData.role_id, // Ensure role_id is included
-        address: formData.address,
-        postal_code: formData.postal_code,
-        city: formData.city,
-        country: formData.country,
-      };
+      setError("Passwords do not match.");
+      return;
+    }
+    if (!formData.role_id) {
+      setError("Please select a role.");
+      return;
+    }
 
-      console.log("Data sent to backend:", data); // Debugging log
+    const payload = {
+      username: makeUsername(formData.first_name, formData.last_name),
+      first_name: formData.first_name,
+      last_name: formData.last_name,
+      email: formData.email,
+      password: formData.password,
+      phone_number: formData.phone_number,
+      role_id: Number(formData.role_id), // cast to number for the API
+      address: formData.address || undefined,
+      postal_code: formData.postal_code || undefined,
+      city: formData.city || undefined,
+      country: formData.country || undefined,
+      // If your backend accepts nested data for Student/Teacher/Parent,
+      // you can add optional `student`, `teacher`, or `parent` objects here.
+    };
 
-=======
-      };
->>>>>>> parent of b8e1959 (FIX same Buge   after i have update the tables i Database)
-      const options = {
-        headers: { "Content-Type": "application/json" },
+    setSubmitting(true);
+    try {
+      const res = await fetch("http://localhost:8000/auth/register", {
         method: "POST",
-        mode: "cors",
-        body: JSON.stringify(data),
-      };
-      try {
-        const result = await fetch(`http://localhost:8000/users/`, options);
-        if (!result.ok) {
-          const errorData = await result.json();
-          throw new Error(
-            errorData.detail || "Det gick inte att skapa användaren."
-          );
-        }
-<<<<<<< HEAD
-        alert("User created!");
-        setFormData({
-          first_name: "",
-          last_name: "",
-          email: "",
-          phone_number: "",
-          password: "",
-          confirmPassword: "",
-          role_id: "",
-          address: "",
-          postal_code: "",
-          city: "",
-          country: "",
-        });
-        setFormKey((prevKey) => prevKey + 1);
-=======
-        alert("Användare skapades!");
->>>>>>> parent of b8e1959 (FIX same Buge   after i have update the tables i Database)
-        navigate("/login");
-      } catch (error) {
-        console.error("Error creating user:", error.message);
-        setError(error.message);
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const msg = await parseFastApiError(res);
+        throw new Error(msg);
       }
+
+      alert("User created!");
+      navigate("/login");
+    } catch (e) {
+      console.error("Error creating user:", e.message);
+      setError(e.message || "Failed to create user.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
     <main className="container mx-auto px-6 py-10">
-      <div className="max-w-3xl mx-auto bg-white p-8 border rounded-lg shadow-md">
+      <div className="max-w-lg mx-auto bg-white p-8 border rounded-lg shadow-md">
         <h2 className="text-3xl font-semibold text-center mb-6">
-          Skapa ett Konto
+          Create an Account
         </h2>
-        {error && <div className="text-red-500 text-center mb-4">{error}</div>}
-<<<<<<< HEAD
 
-        <form key={formKey} onSubmit={handleSubmit} className="space-y-6">
-          {/* First Name */}
-          <div>
-=======
+        {error && <div className="text-red-500 text-center mb-4">{error}</div>}
+
         <form onSubmit={handleSubmit}>
-          {/* Namn */}
+          {/* First Name */}
           <div className="mb-4">
->>>>>>> parent of b8e1959 (FIX same Buge   after i have update the tables i Database)
-            <label
-              htmlFor="first_name"
-              className="block text-gray-700 font-semibold"
-            >
-              Förnamn
+            <label htmlFor="first_name" className="block text-gray-700 font-semibold">
+              First Name
             </label>
             <input
               type="text"
@@ -143,17 +124,10 @@ const RegisterForm = () => {
             />
           </div>
 
-<<<<<<< HEAD
           {/* Last Name */}
-          <div>
-=======
           <div className="mb-4">
->>>>>>> parent of b8e1959 (FIX same Buge   after i have update the tables i Database)
-            <label
-              htmlFor="last_name"
-              className="block text-gray-700 font-semibold"
-            >
-              Efternamn
+            <label htmlFor="last_name" className="block text-gray-700 font-semibold">
+              Last Name
             </label>
             <input
               type="text"
@@ -166,18 +140,10 @@ const RegisterForm = () => {
             />
           </div>
 
-<<<<<<< HEAD
           {/* Email */}
-          <div>
-=======
-          {/* E-post */}
           <div className="mb-4">
->>>>>>> parent of b8e1959 (FIX same Buge   after i have update the tables i Database)
-            <label
-              htmlFor="email"
-              className="block text-gray-700 font-semibold"
-            >
-              E-post
+            <label htmlFor="email" className="block text-gray-700 font-semibold">
+              Email
             </label>
             <input
               type="email"
@@ -186,23 +152,14 @@ const RegisterForm = () => {
               value={formData.email}
               onChange={handleChange}
               required
-              autoComplete="new-email" // Use 'new-email' to prevent autofill for email
               className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
             />
           </div>
 
-<<<<<<< HEAD
           {/* Phone Number */}
-          <div>
-=======
-          {/* Telefonnummer */}
           <div className="mb-4">
->>>>>>> parent of b8e1959 (FIX same Buge   after i have update the tables i Database)
-            <label
-              htmlFor="phone_number"
-              className="block text-gray-700 font-semibold"
-            >
-              Telefonnummer
+            <label htmlFor="phone_number" className="block text-gray-700 font-semibold">
+              Phone Number
             </label>
             <input
               type="tel"
@@ -215,54 +172,26 @@ const RegisterForm = () => {
             />
           </div>
 
-<<<<<<< HEAD
           {/* Password */}
-          <div>
-=======
-          {/* Lösenord */}
           <div className="mb-4">
->>>>>>> parent of b8e1959 (FIX same Buge   after i have update the tables i Database)
-            <label
-              htmlFor="password"
-              className="block text-gray-700 font-semibold"
-            >
-              Lösenord
+            <label htmlFor="password" className="block text-gray-700 font-semibold">
+              Password
             </label>
             <input
-              type={showPassword ? "text" : "password"}
+              type="password"
               id="password"
               name="password"
               value={formData.password}
               onChange={handleChange}
               required
-              autoComplete="new-password" // Use 'new-password' to disable autofill for password
               className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
             />
-            <div className="mt-2">
-              <label className="inline-flex items-center">
-                <input
-                  type="checkbox"
-                  checked={showPassword}
-                  onChange={() => setShowPassword(!showPassword)} // Toggle showPassword state
-                  className="form-checkbox h-4 w-4 text-yellow-500"
-                />
-                <span className="ml-2 text-gray-700">Show Password</span>
-              </label>
-            </div>
           </div>
 
-<<<<<<< HEAD
           {/* Confirm Password */}
-          <div>
-=======
-          {/* Bekräfta Lösenord */}
           <div className="mb-4">
->>>>>>> parent of b8e1959 (FIX same Buge   after i have update the tables i Database)
-            <label
-              htmlFor="confirmPassword"
-              className="block text-gray-700 font-semibold"
-            >
-              Bekräfta Lösenord
+            <label htmlFor="confirmPassword" className="block text-gray-700 font-semibold">
+              Confirm Password
             </label>
             <input
               type="password"
@@ -275,13 +204,9 @@ const RegisterForm = () => {
             />
           </div>
 
-<<<<<<< HEAD
           {/* Role */}
-          <div>
-            <label
-              htmlFor="role_id"
-              className="block text-gray-700 font-semibold"
-            >
+          <div className="mb-4">
+            <label htmlFor="role_id" className="block text-gray-700 font-semibold">
               Role (e.g., Student, Teacher, Parent)
             </label>
             <select
@@ -300,11 +225,8 @@ const RegisterForm = () => {
           </div>
 
           {/* Address */}
-          <div>
-            <label
-              htmlFor="address"
-              className="block text-gray-700 font-semibold"
-            >
+          <div className="mb-4">
+            <label htmlFor="address" className="block text-gray-700 font-semibold">
               Address
             </label>
             <input
@@ -318,11 +240,8 @@ const RegisterForm = () => {
           </div>
 
           {/* Postal Code */}
-          <div>
-            <label
-              htmlFor="postal_code"
-              className="block text-gray-700 font-semibold"
-            >
+          <div className="mb-4">
+            <label htmlFor="postal_code" className="block text-gray-700 font-semibold">
               Postal Code
             </label>
             <input
@@ -336,7 +255,7 @@ const RegisterForm = () => {
           </div>
 
           {/* City */}
-          <div>
+          <div className="mb-4">
             <label htmlFor="city" className="block text-gray-700 font-semibold">
               City
             </label>
@@ -351,11 +270,8 @@ const RegisterForm = () => {
           </div>
 
           {/* Country */}
-          <div>
-            <label
-              htmlFor="country"
-              className="block text-gray-700 font-semibold"
-            >
+          <div className="mb-4">
+            <label htmlFor="country" className="block text-gray-700 font-semibold">
               Country
             </label>
             <input
@@ -368,24 +284,25 @@ const RegisterForm = () => {
             />
           </div>
 
-=======
->>>>>>> parent of b8e1959 (FIX same Buge   after i have update the tables i Database)
-          {/* Submit Button */}
+          {/* Submit */}
           <div className="flex justify-center">
             <button
               type="submit"
-              className="bg-yellow-500 text-white py-2 px-6 rounded-md hover:bg-yellow-600 transition-all"
+              disabled={submitting}
+              className={`${
+                submitting ? "opacity-60 cursor-not-allowed" : ""
+              } bg-yellow-500 text-white py-2 px-6 rounded-md hover:bg-yellow-600 transition-all`}
             >
-              Registrera
+              {submitting ? "Registering..." : "Register"}
             </button>
           </div>
         </form>
 
         <div className="mt-4 text-center">
           <p className="text-sm text-gray-700">
-            Har du redan ett konto?{" "}
+            Already have an account?{" "}
             <a href="/login" className="text-blue-500 hover:text-blue-700">
-              Logga in här
+              Log in here
             </a>
           </p>
         </div>

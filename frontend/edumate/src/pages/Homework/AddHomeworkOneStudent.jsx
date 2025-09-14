@@ -14,7 +14,7 @@ const AddHomeworkOneStudent = () => {
   const [dueDate, setDueDate] = useState("");
   const [priority, setPriority] = useState("Normal");
   const [status, setStatus] = useState("Pending");
-
+  const [students, setStudents] = useState([]);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
@@ -116,6 +116,9 @@ const AddHomeworkOneStudent = () => {
     fetchStudentNames();
   }, [classLevelId]);
 
+  // Remove the above useEffect: students are fetched by class level and stored in studentNames
+
+  console.log("studentNames", studentNames); 
   return (
     <div className="container mx-auto px-6 py-10">
       <h1 className="text-4xl font-extrabold text-gray-800 mb-8 text-center tracking-wide leading-tight">
@@ -260,16 +263,16 @@ const AddHomeworkOneStudent = () => {
             Student Name
           </label>
           <select
-            id="subjectClassLevel"
+            id="studentName"
             value={studentNameId}
             onChange={(e) => setStudentNameId(e.target.value)}
             className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             required
           >
             <option value="">Select Student</option>
-            {studentNames.map((studentName) => (
-              <option key={studentName.id} value={studentName.id}>
-                {studentName.user.first_name} {studentName.user.last_name}
+            {studentNames.map(student => (
+              <option key={student.id} value={student.id}>
+                {student.user.first_name} {student.user.last_name}
               </option>
             ))}
           </select>

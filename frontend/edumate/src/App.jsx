@@ -89,6 +89,8 @@ const App = () => {
           path="/teacher"
           element={<Teachers teacherId={teacherId} userId={userId} />}
         />
+        <Route path="/minsida" element={<MinSida userId={Number(userId) || 0} />} />
+
         <Route path="/manage-teachers" element={<ManageTeachers />} />
         <Route
           path="/meddelande"

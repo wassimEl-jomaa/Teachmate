@@ -4,85 +4,76 @@ import SideBar from "../components/SideBar";
 
 const MinSida = ({ userId }) => {
   const [user, setUser] = useState(null);
-  const [homeworkList, setHomeworkList] = useState([]); // Define homeworkList state
+  const [studentHomeworks, setStudentHomeworks] = useState([]);
 
-  // Fetch user data
-  useEffect(() => {
+  const API_BASE = "http://localhost:8000";
+
+  const authHeaders = () => {
     const token = localStorage.getItem("token");
-    console.log("Fetching user data for userId:", userId);
+    return { Authorization: `Bearer ${token}` };
+  };
 
+  useEffect(() => {
     const fetchUserData = async () => {
       try {
-        const response = await axios.get(
-          `http://localhost:8000/users/${userId}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-        console.log("Fetched user data:", response.data);
+        const response = await axios.get(`${API_BASE}/users/${userId}`, {
+          headers: authHeaders(),
+        });
         setUser(response.data);
       } catch (error) {
-        console.error(
-          "Error fetching user data:",
-          error.response?.data || error.message
-        );
+        console.error("Error fetching user data:", error.response?.data || error.message);
       }
     };
-
-    if (userId) {
-      fetchUserData();
-    }
+    if (userId) fetchUserData();
   }, [userId]);
 
-  // Fetch homework data
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    console.log("Fetching homework list for userId:", userId);
-
-    const fetchHomeworkData = async () => {
+    const fetchStudentHomeworks = async () => {
       try {
-        const response = await axios.get(
-          `http://localhost:8000/homeworks/${userId}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-        console.log("Fetched homework data:", response.data);
-        setHomeworkList(response.data);
+        const response = await axios.get(`${API_BASE}/student_homeworks?student_id=${userId}`, {
+          headers: authHeaders(),
+        });
+        setStudentHomeworks(response.data);
       } catch (error) {
-        console.error(
-          "Error fetching homework data:",
-          error.response?.data || error.message
-        );
+        console.error("Error fetching student homeworks:", error.response?.data || error.message);
       }
     };
-
-    if (userId) {
-      fetchHomeworkData();
-    }
+    if (userId) fetchStudentHomeworks();
   }, [userId]);
 
-  // Handle homework completion
-  const handleCompleteHomework = async (homeworkId) => {
+  const isCompleted = (sh) =>
+    typeof sh?.homework?.status === "string" &&
+    sh.homework.status.toLowerCase() === "completed";
+
+  const toUiStatus = (sh) => (isCompleted(sh) ? "Klar" : "Ej klar");
+
+  const handleCompleteHomework = async (studentHomeworkId) => {
+    // Optimistic UI update
+    setStudentHomeworks((prev) =>
+      prev.map((sh) =>
+        sh.id === studentHomeworkId
+          ? { ...sh, homework: { ...(sh.homework ?? {}), status: "completed" } }
+          : sh
+      )
+    );
+
     try {
-      const response = await axios.patch(
-        `http://localhost:8000/homeworks/${homeworkId}`,
-        { status: "Klar" } // Updating homework status to "Klar"
+      await axios.patch(
+        `${API_BASE}/student_homeworks/${studentHomeworkId}`,
+        { status: "completed" },
+        { headers: authHeaders() }
       );
-      console.log("Updated homework data:", response.data);
-      setHomeworkList((prevList) =>
-        prevList.map((homework) =>
-          homework.id === homeworkId
-            ? { ...homework, status: "Klar" } // Update the status of completed homework in local state
-            : homework
+    } catch (err) {
+      // Rollback if error
+      setStudentHomeworks((prev) =>
+        prev.map((sh) =>
+          sh.id === studentHomeworkId
+            ? { ...sh, homework: { ...(sh.homework ?? {}), status: "pending" } }
+            : sh
         )
       );
-    } catch (error) {
-      console.error("Error completing homework:", error);
+      console.error("Error marking homework as complete:", err);
+      alert("Kunde inte markera som klar.");
     }
   };
 
@@ -99,6 +90,8 @@ const MinSida = ({ userId }) => {
     );
   }
 
+  const ongoingHomeworks = studentHomeworks.filter((sh) => !isCompleted(sh));
+
   return (
     <div className="flex min-h-screen">
       <SideBar />
@@ -111,43 +104,35 @@ const MinSida = ({ userId }) => {
           !
         </h1>
 
-        {/* Ongoing Homework Section */}
         <div className="mb-8">
           <h2 className="text-2xl font-bold mb-4">Pågående Läxor</h2>
           <div className="space-y-4">
-            {homeworkList.length === 0 ? (
-              <p>Inga pågående läxor.</p>
+            {studentHomeworks.length === 0 ? (
+              <p>Inga läxor.</p>
             ) : (
-              homeworkList.map((homework) => (
-                <div
-                  key={homework.id}
-                  className="bg-white p-4 rounded-lg shadow-md"
-                >
-                  <h3 className="text-xl font-semibold">{homework.title}</h3>
+              studentHomeworks.map((sh) => (
+                <div key={sh.id} className="bg-white p-4 rounded-lg shadow-md">
+                  <h3 className="text-xl font-semibold">{sh.homework?.title || "Läxa"}</h3>
+                  <p><strong>Beskrivning:</strong> {sh.homework?.description}</p>
+                  <p><strong>Förfallodatum:</strong> {sh.homework?.due_date}</p>
+                  <p><strong>Prioritet:</strong> {sh.homework?.priority}</p>
                   <p>
-                    <strong>Beskrivning:</strong> {homework.description}
+                    <strong>Status:</strong>{" "}
+                    <span className={isCompleted(sh) ? "text-red-600 font-bold" : ""}>
+                      {toUiStatus(sh)}
+                    </span>
                   </p>
-                  <p>
-                    <strong>Filuppladdning:</strong>{" "}
-                    {homework.filuppladdning?.filepath || "Ej betygsatt"}
-                  </p>
-                  <p>
-                    <strong>Förfallodatum:</strong> {homework.due_date}
-                  </p>
-                  <p>
-                    <strong>Status:</strong> {homework.status}
-                  </p>
-                  <p>
-                    <strong>Prioritet:</strong> {homework.priority}
-                  </p>
-                  <p>
-                    <strong>Ämne:</strong> {homework.subject?.name}
-                  </p>
-
-                  {homework.status !== "Klar" && (
+                  {isCompleted(sh) ? (
                     <button
-                      onClick={() => handleCompleteHomework(homework.id)}
-                      className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-all"
+                      disabled
+                      className="bg-red-600 text-white px-4 py-2 rounded-md cursor-default mt-3"
+                    >
+                      Klar
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleCompleteHomework(sh.id)}
+                      className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-all mt-3"
                     >
                       Markera som klar
                     </button>
@@ -163,3 +148,4 @@ const MinSida = ({ userId }) => {
 };
 
 export default MinSida;
+
