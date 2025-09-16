@@ -1,148 +1,152 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import axios from "axios";
-import SideBar from "../components/SideBar";
+import decodeToken from "../utils/utils"; // adjust path if needed
 
-const MinSida = ({ userId }) => {
-  const [user, setUser] = useState(null);
-  const [studentHomeworks, setStudentHomeworks] = useState([]);
+const MinSida = () => {
+  const [student, setStudent] = useState(null);
+  const [homeworks, setHomeworks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
 
-  const API_BASE = "http://localhost:8000";
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) {
+          setErrorMessage("No token found. Please log in again.");
+          setLoading(false);
+          return;
+        }
 
-  const authHeaders = () => {
+        const message = decodeToken(token).split("|");
+        const userId = parseInt(message[0], 10);
+
+        // fetch student profile
+        const studentRes = await axios.get(
+          `http://127.0.0.1:8000/students/by_user/${userId}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        setStudent(studentRes.data);
+
+        // fetch this student’s homeworks
+        const hwRes = await axios.get(
+          `http://127.0.0.1:8000/student_homeworks?student_id=${studentRes.data.id}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        setHomeworks(hwRes.data);
+      } catch (err) {
+        const msg = err.response?.data?.detail || err.message || String(err);
+        console.error("Could not load MinSida:", msg);
+        setErrorMessage(msg);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // 🔹 mark homework as completed
+  const handleMarkAsComplete = async (id) => {
     const token = localStorage.getItem("token");
-    return { Authorization: `Bearer ${token}` };
-  };
-
-  useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        const response = await axios.get(`${API_BASE}/users/${userId}`, {
-          headers: authHeaders(),
-        });
-        setUser(response.data);
-      } catch (error) {
-        console.error("Error fetching user data:", error.response?.data || error.message);
-      }
-    };
-    if (userId) fetchUserData();
-  }, [userId]);
-
-  useEffect(() => {
-    const fetchStudentHomeworks = async () => {
-      try {
-        const response = await axios.get(`${API_BASE}/student_homeworks?student_id=${userId}`, {
-          headers: authHeaders(),
-        });
-        setStudentHomeworks(response.data);
-      } catch (error) {
-        console.error("Error fetching student homeworks:", error.response?.data || error.message);
-      }
-    };
-    if (userId) fetchStudentHomeworks();
-  }, [userId]);
-
-  const isCompleted = (sh) =>
-    typeof sh?.homework?.status === "string" &&
-    sh.homework.status.toLowerCase() === "completed";
-
-  const toUiStatus = (sh) => (isCompleted(sh) ? "Klar" : "Ej klar");
-
-  const handleCompleteHomework = async (studentHomeworkId) => {
-    // Optimistic UI update
-    setStudentHomeworks((prev) =>
-      prev.map((sh) =>
-        sh.id === studentHomeworkId
-          ? { ...sh, homework: { ...(sh.homework ?? {}), status: "completed" } }
-          : sh
-      )
-    );
-
     try {
       await axios.patch(
-        `${API_BASE}/student_homeworks/${studentHomeworkId}`,
-        { status: "completed" },
-        { headers: authHeaders() }
+        `http://127.0.0.1:8000/student_homeworks/${id}/complete`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
       );
-    } catch (err) {
-      // Rollback if error
-      setStudentHomeworks((prev) =>
-        prev.map((sh) =>
-          sh.id === studentHomeworkId
-            ? { ...sh, homework: { ...(sh.homework ?? {}), status: "pending" } }
-            : sh
+
+      // update state immediately
+      setHomeworks((prev) =>
+        prev.map((hw) =>
+          hw.id === id ? { ...hw, is_completed: true } : hw
         )
       );
-      console.error("Error marking homework as complete:", err);
-      alert("Kunde inte markera som klar.");
+    } catch (err) {
+      console.error("Error marking homework complete:", err.response?.data || err);
+      setErrorMessage("Kunde inte markera som klar.");
     }
   };
 
-  if (!user) {
+  if (loading) {
+    return <p className="text-center mt-6 text-gray-600">Loading...</p>;
+  }
+
+  if (errorMessage) {
     return (
-      <div className="flex min-h-screen">
-        <SideBar />
-        <div className="flex-1 p-6 bg-gray-100">
-          <h1 className="text-4xl font-semibold text-center mb-8 blue shadow-lg rounded-lg p-6 bg-gradient-to-r from-blue-400 to-indigo-600 text-white">
-            Laddar användardata...
-          </h1>
-        </div>
+      <div className="flex justify-center items-center min-h-[60vh]">
+        <p className="text-center text-red-600 font-medium text-lg bg-red-50 px-6 py-3 rounded-md shadow-md">
+          ⚠️ Error: {errorMessage}
+        </p>
       </div>
     );
   }
 
-  const ongoingHomeworks = studentHomeworks.filter((sh) => !isCompleted(sh));
-
   return (
-    <div className="flex min-h-screen">
-      <SideBar />
-      <div className="flex-1 p-6 bg-gray-100">
-        <h1 className="text-4xl font-semibold text-center mb-8 blue shadow-lg rounded-lg p-6 bg-gradient-to-r from-blue-400 to-indigo-600 text-white">
-          Välkommen,{" "}
-          {user.first_name && user.last_name
-            ? `${user.first_name} ${user.last_name}`
-            : "Användare"}
-          !
-        </h1>
+    <div className="container mx-auto px-6 py-10">
+      <h1 className="text-4xl font-extrabold text-gray-800 mb-6 text-center">
+        Min Sida
+      </h1>
 
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold mb-4">Pågående Läxor</h2>
-          <div className="space-y-4">
-            {studentHomeworks.length === 0 ? (
-              <p>Inga läxor.</p>
-            ) : (
-              studentHomeworks.map((sh) => (
-                <div key={sh.id} className="bg-white p-4 rounded-lg shadow-md">
-                  <h3 className="text-xl font-semibold">{sh.homework?.title || "Läxa"}</h3>
-                  <p><strong>Beskrivning:</strong> {sh.homework?.description}</p>
-                  <p><strong>Förfallodatum:</strong> {sh.homework?.due_date}</p>
-                  <p><strong>Prioritet:</strong> {sh.homework?.priority}</p>
-                  <p>
-                    <strong>Status:</strong>{" "}
-                    <span className={isCompleted(sh) ? "text-red-600 font-bold" : ""}>
-                      {toUiStatus(sh)}
-                    </span>
-                  </p>
-                  {isCompleted(sh) ? (
-                    <button
-                      disabled
-                      className="bg-red-600 text-white px-4 py-2 rounded-md cursor-default mt-3"
-                    >
-                      Klar
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => handleCompleteHomework(sh.id)}
-                      className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-all mt-3"
-                    >
-                      Markera som klar
-                    </button>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
+      {student && (
+        <div className="bg-gradient-to-r from-blue-500 to-blue-700 text-white p-6 rounded-xl shadow-lg mb-10 text-center">
+          <h2 className="text-2xl font-bold">
+            Välkommen, {student.user.first_name} {student.user.last_name} 👋
+          </h2>
+          <p className="mt-2 text-blue-100">Här ser du dina tilldelade läxor.</p>
         </div>
-      </div>
+      )}
+
+      <h2 className="text-2xl font-semibold mb-6 text-gray-700">
+        📚 Mina Läxor
+      </h2>
+
+      {homeworks.length === 0 ? (
+        <p className="text-gray-500 italic">Inga läxor tilldelade.</p>
+      ) : (
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {homeworks.map((shw) => (
+            <div
+              key={shw.id}
+              className="border border-gray-200 p-6 rounded-xl shadow-md bg-white hover:shadow-lg hover:scale-[1.01] transition transform duration-200"
+            >
+              <h3 className="text-xl font-semibold text-gray-800 mb-2">
+                {shw.homework.title}
+              </h3>
+              <p className="text-gray-600 mb-1">
+                <span className="font-semibold">Beskrivning:</span>{" "}
+                {shw.homework.description}
+              </p>
+              <p className="text-gray-600 mb-1">
+                <span className="font-semibold">Förfallodatum:</span>{" "}
+                {shw.homework.due_date}
+              </p>
+              <p className="text-gray-600 mb-1">
+                <span className="font-semibold">Prioritet:</span>{" "}
+                {shw.homework.priority}
+              </p>
+
+              <p className="mt-2 mb-3">
+                <span className="font-semibold">Status:</span>{" "}
+                {shw.is_completed ? (
+                  <span className="text-green-600 font-bold">✅ Klar</span>
+                ) : (
+                  <span className="text-red-600 font-bold">❌ Ej klar</span>
+                )}
+              </p>
+
+              {!shw.is_completed && (
+                <button
+                  onClick={() => handleMarkAsComplete(shw.id)}
+                  className="w-full py-2 px-4 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 transition"
+                >
+                  Markera som Klar ✅
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

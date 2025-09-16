@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
 from fastapi import FastAPI, HTTPException, Depends, Security, status, Response
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -735,7 +735,20 @@ def get_all_students(
         .all()
     )
     return students
+@app.get("/students/by_user/{user_id}", response_model=StudentOut)
+def get_student_by_user(
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    # Optional access control if you want:
+    # if current_user.role.name not in ("Admin", "Teacher") and current_user.id != user_id:
+    #     raise HTTPException(status_code=403, detail="Not authorized")
 
+    student = db.query(Student).filter(Student.user_id == user_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student profile not found for this user")
+    return student
 # Get student by ID with token validation and user authentication
 @app.get("/students/{student_id}", response_model=StudentOut)
 def get_student(student_id: int, 
@@ -757,7 +770,19 @@ def get_student(student_id: int,
 
     # Return the student details
     return student
-
+@app.get("/student_homeworks", response_model=List[StudentHomeworkOut])
+def get_all_student_homeworks(
+    student_id: int | None = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    q = db.query(Student_Homework).options(
+        joinedload(Student_Homework.homework),
+        joinedload(Student_Homework.student).joinedload(Student.user),
+    )
+    if student_id is not None:
+        q = q.filter(Student_Homework.student_id == student_id)
+    return q.all()
 @app.get("/students/class_level/{class_level_id}", response_model=List[StudentOut])
 def get_students_by_class_level(
     class_level_id: int,
@@ -1402,6 +1427,19 @@ def add_grade(
     db.refresh(new_grade)
 
     return new_grade
+students_router = APIRouter(prefix="/students", tags=["students"])
+
+@students_router.get("/by_user/{user_id}", response_model=StudentOut)
+def get_student_by_user(user_id: int, db: Session = Depends(get_db)):
+    student = (
+        db.query(Student)
+        .options(joinedload(Student.user))   # so StudentOut.user is populated
+        .filter(Student.user_id == user_id)
+        .first()
+    )
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found for this user_id")
+    return student   
 @app.get("/grades", response_model=List[GradeBase])
 def get_all_grades(
     current_user: User = Depends(get_current_user),  # Token validation and user authentication
@@ -1449,6 +1487,40 @@ def update_grade(
     db.refresh(grade)
 
     return grade  
+# by a student user id
+@app.get("/betyg/user/{user_id}", response_model=List[GradeBase])
+def get_betyg_by_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Return all grades for the student linked to this user_id.
+    (Teachers see grades for a selected student by user_id.)
+    """
+    # Find the student record that belongs to this user
+    student = db.query(Student).filter(Student.user_id == user_id).first()
+    if not student:
+        # Return empty list (or raise 404 if you prefer)
+        return []
+
+    grades = (
+        db.query(Grade)
+        .join(Grade.student_homework)
+        .filter(Student_Homework.student_id == student.id)
+        .all()
+    )
+    return grades
+
+# by student_id (direct)
+@app.get("/grades/by_student/{student_id}", response_model=List[GradeBase])
+def grades_by_student(student_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return (
+        db.query(Grade)
+          .join(Grade.student_homework)
+          .filter(Student_Homework.student_id == student_id)
+          .all()
+    )    
 @app.delete("/grades/{grade_id}")
 def delete_grade(
     grade_id: int,
@@ -1472,11 +1544,11 @@ def delete_grade(
     db.commit()
 
     return {"message": f"Grade with ID {grade_id} has been deleted successfully"} 
-@app.post("/student_homeworks", response_model=StudentHomeworkOut)
+@app.post("/student_homeworks", response_model=StudentHomeworkBase)
 def add_student_homework(
     student_homework_data: StudentHomeworkCreate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db)
 ):
     if current_user.role.name != "Teacher":
         raise HTTPException(status_code=403, detail="Not authorized to add student homework")
@@ -1486,15 +1558,22 @@ def add_student_homework(
     if not student or not homework:
         raise HTTPException(status_code=404, detail="Student or Homework not found")
 
-    # back-compat for old payloads with the misspelled key
-    fa_id = getattr(student_homework_data, "file_attachment_id", None)
-    if fa_id is None and hasattr(student_homework_data, "file_attachement_id"):
-        fa_id = getattr(student_homework_data, "file_attachement_id")
+    # ✅ skip duplicate pairs
+    existing = (
+        db.query(Student_Homework)
+        .filter(
+            Student_Homework.student_id == student_homework_data.student_id,
+            Student_Homework.homework_id == student_homework_data.homework_id,
+        )
+        .first()
+    )
+    if existing:
+        return existing  # 200 OK with the existing record
 
     new_student_homework = Student_Homework(
         student_id=student_homework_data.student_id,
         homework_id=student_homework_data.homework_id,
-        file_attachment_id=fa_id,
+        file_attachment_id=getattr(student_homework_data, "file_attachment_id", None),
     )
     db.add(new_student_homework)
     db.commit()
@@ -1522,6 +1601,36 @@ def get_all_student_homeworks(
     return student_homeworks
  # Create router for student_homeworks
 student_hw_router = APIRouter(prefix="/student_homeworks", tags=["Student Homeworks"])
+@student_hw_router.get("/", response_model=List[StudentHomeworkOut])
+def list_student_homeworks(
+    student_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Returns student_homeworks filtered by:
+      - student_id query param (if provided), else
+      - current_user if they are a Student (only their own rows), else
+      - all rows for Teachers/Admins
+    """
+    q = db.query(Student_Homework).options(
+        joinedload(Student_Homework.homework).joinedload(Homework.subject_class_level).joinedload(Subject_Class_Level.subject),
+        joinedload(Student_Homework.student).joinedload(Student.user),
+        joinedload(Student_Homework.file_attachment),
+    )
+
+    if student_id is not None:
+        q = q.filter(Student_Homework.student_id == student_id)
+    else:
+        # If the logged in user is a Student, show only their rows
+        if current_user.role.name == "Student":
+            # find their Student.id
+            student = db.query(Student).filter(Student.user_id == current_user.id).first()
+            if not student:
+                return []
+            q = q.filter(Student_Homework.student_id == student.id)
+
+    return q.order_by(Student_Homework.id.desc()).all()
 @student_hw_router.delete("/{student_homework_id}", status_code=204)
 def delete_student_homework(
     student_homework_id: int,

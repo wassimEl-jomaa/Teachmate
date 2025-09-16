@@ -47,7 +47,11 @@ class Student_Homework(Base):
     id = Column(Integer, primary_key=True, index=True)
     student_id = Column(Integer, ForeignKey("student.id", ondelete="CASCADE"))
     homework_id = Column(Integer, ForeignKey("homework.id", ondelete="CASCADE"))
-    file_attachment_id = Column(Integer, ForeignKey("file_attachment.id", ondelete="CASCADE"))  # ✅ fixed spelling
+    file_attachment_id = Column(Integer, ForeignKey("file_attachment.id", ondelete="CASCADE"))
+
+    __table_args__ = (
+        UniqueConstraint("student_id", "homework_id", name="uq_student_homework_student_homework"),
+    )
 
     student = relationship("Student", back_populates="student_homework")
     homework = relationship("Homework", back_populates="student_homework")
