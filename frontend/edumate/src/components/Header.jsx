@@ -81,12 +81,7 @@ export default function Header({ signedIn, setSignedIn, role }) {
               >
                 Profile
               </Link>
-              <Link
-                to="/MinSida"
-                className="font-bold text-xl text-white bg-blue-400 px-4 py-2 rounded hover:bg-blue-300 transition-all"
-              >
-                My page
-              </Link>
+             
               <Link
                 to="/"
                 onClick={logout}

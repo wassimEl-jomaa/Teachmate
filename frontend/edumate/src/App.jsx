@@ -21,6 +21,7 @@ import ManageMeddelanden from "./pages/ManageMeddelanden";
 import ManageHomework from "./pages/ManageHomework";
 import MeddelandePage from "./pages/MeddelandePage";
 import BetygPage from "./pages/BetygPage";
+import BetygForm from "./pages/BetygForm";
 import ManageSubjects from "./pages/ManageSubjects";
 import decodeToken from "./utils/utils";
 import Teachers from "./pages/Teachers";
@@ -73,6 +74,8 @@ const App = () => {
         <Route path="/register" element={<RegisterForm />} />
         <Route path="/profil" element={<Profil userId={userId} />} />
         <Route path="/minsida" element={<MinSida userId={userId} />} />
+        {/* Student Betyg page from sidebar */}
+        <Route path="/minbetyg" element={<BetygForm />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/personliglarplan" element={<PersonligLärplan />} />
         <Route path="/aboutus" element={<AboutUs />} />
@@ -84,9 +87,7 @@ const App = () => {
         <Route path="/manage-subjects" element={<ManageSubjects />} />
         <Route path="/manage-meddelanden" element={<ManageMeddelanden />} />
         <Route path="/manage-homework" element={<ManageHomework />} />
-        <Route path="/" element={<ManageHomework />} />
         <Route path="/add-homework" element={<AddHomeworkOneStudent />} />
-        
         <Route path="/add-homework-class" element={<AddHomeworkAllClass />} />
         <Route path="/add-class-homework" element={<AddHomeworkAllClass />} /> {/* alias */}
         <Route path="/homeworks" element={<ShowAllHomework />} />
@@ -94,12 +95,15 @@ const App = () => {
           path="/teacher"
           element={<Teachers teacherId={teacherId} userId={userId} />}
         />
-        <Route path="/minsida" element={<MinSida userId={Number(userId) || 0} />} />
-
         <Route path="/manage-teachers" element={<ManageTeachers />} />
         <Route
           path="/meddelande"
           element={<MeddelandePage userId={userId} />}
+        />
+        {/* Add the minmeddelande route */}
+        <Route 
+          path="/minmeddelande" 
+          element={<MeddelandePage userId={userId} />} 
         />
         <Route
           path="/betyg"

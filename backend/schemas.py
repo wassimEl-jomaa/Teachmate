@@ -380,7 +380,9 @@ class MessageBase(BaseModel):
         from_attributes = True     
 class MessageCreate(BaseModel):
     message: str
-    recipient_user_id: int   
+    recipient_user_id: int  
+    read_status: Optional[str] = None 
+    homework_id: Optional[int] = None
 class MessageUpdate(BaseModel):
     read_status: Optional[str] = None  
 class RecommendedResourceBase(BaseModel):

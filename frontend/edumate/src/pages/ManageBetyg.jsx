@@ -28,17 +28,16 @@ const ManageBetyg = ({ userId }) => {
   }, [token]);
 
   const visibleGrades = useMemo(() => {
-    // Only grades created by this teacher
-    const teacherGrades = allGrades.filter(g => String(g.teacher_id) === String(teacherUserId));
+    // Show all grades for students in the selected class, regardless of who created them
     if (selectedStudentHwId) {
-      return teacherGrades.filter(g => String(g.student_homework_id) === String(selectedStudentHwId));
+      return allGrades.filter(g => String(g.student_homework_id) === String(selectedStudentHwId));
     }
     if (selectedStudentId) {
       const hwIds = new Set(studentHomeworks.map(h => h.id));
-      return teacherGrades.filter(g => hwIds.has(g.student_homework_id));
+      return allGrades.filter(g => hwIds.has(g.student_homework_id));
     }
     return [];
-  }, [allGrades, selectedStudentHwId, selectedStudentId, studentHomeworks, teacherUserId]);
+  }, [allGrades, selectedStudentHwId, selectedStudentId, studentHomeworks]);
 
   // form states
   const [newGrade, setNewGrade] = useState({ grade: "", description: "", feedback: "" });

@@ -1,36 +1,62 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 
+const Badge = ({ children, tone = "blue" }) => (
+  <span
+    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-${tone}-100 text-${tone}-800`}
+  >
+    {children}
+  </span>
+);
+
 const MeddelandePage = ({ userId }) => {
   const [meddelanden, setMeddelanden] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const token = localStorage.getItem("token"); // Retrieve the token from localStorage
+    const token = localStorage.getItem("token");
     console.log("Fetching meddelanden for userId:", userId);
+
+    if (!userId) {
+      setError("User ID saknas");
+      setLoading(false);
+      return;
+    }
 
     axios
       .get(`http://127.0.0.1:8000/meddelanden/user/${userId}`, {
         headers: {
-          Authorization: `Bearer ${token}`, // Include the token
+          Authorization: `Bearer ${token}`,
         },
       })
       .then((response) => {
-        setMeddelanden(response.data);
+        setMeddelanden(response.data || []);
         setLoading(false);
-        console.log("User ID:", userId);
+        console.log("Fetched messages:", response.data);
       })
       .catch((err) => {
+        console.error("Error fetching messages:", err);
         setError(err.response?.data?.detail || "Failed to fetch messages");
         setLoading(false);
       });
   }, [userId]);
 
   const handleStatusUpdate = (meddelandeId) => {
+    const token = localStorage.getItem("token");
+    
     axios
-      .put(`http://127.0.0.1:8000/meddelanden/${meddelandeId}/mark_as_read`)
-      .then(() => {
+      .put(
+        `http://127.0.0.1:8000/meddelanden/${meddelandeId}/?mark_as_read=true`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      )
+      .then((response) => {
+        console.log("Meddelande marked as read:", response.data);
         // Update the status locally after a successful request
         setMeddelanden((prevMeddelanden) =>
           prevMeddelanden.map((meddelande) =>
@@ -40,61 +66,133 @@ const MeddelandePage = ({ userId }) => {
           )
         );
       })
-      .catch((err) => {
-        console.error("Failed to update status:", err);
-      });
-    axios
-      .put(
-        `http://127.0.0.1:8000/meddelanden/${meddelandeId}/?mark_as_read=true`
-      )
-      .then((response) => {
-        console.log("Meddelande marked as read:", response.data);
-      })
       .catch((error) => {
         console.error("Failed to mark as read:", error);
       });
   };
 
   if (loading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex justify-center items-center min-h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
   }
 
   if (error) {
-    return <div className="text-red-500">{error}</div>;
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center">
+            <div className="text-red-400 mr-3">⚠️</div>
+            <div className="text-red-800">{error}</div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="p-6 bg-white rounded shadow-md">
-      <h2 className="text-2xl font-bold mb-4">Meddelanden</h2>
+    <div className="max-w-4xl mx-auto px-4 py-8">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Mina Meddelanden</h1>
+        <p className="text-gray-600">Meddelanden från dina lärare och skolpersonal</p>
+      </div>
+
+      {/* Messages */}
       {meddelanden.length === 0 ? (
-        <p className="text-gray-600">Inga meddelanden att visa.</p>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+          <div className="text-gray-400 text-6xl mb-4">📭</div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Inga meddelanden</h3>
+          <p className="text-gray-500">Du har inga meddelanden att visa just nu.</p>
+        </div>
       ) : (
-        <ul className="space-y-4">
+        <div className="space-y-4">
           {meddelanden.map((meddelande) => (
-            <li
+            <div
               key={meddelande.id}
-              className="p-4 border rounded bg-gray-100 hover:bg-gray-200 transition"
+              className={`bg-white rounded-xl shadow-sm border transition-all duration-200 hover:shadow-md ${
+                meddelande.read_status === "Read" 
+                  ? "border-gray-200 opacity-75" 
+                  : "border-blue-200 shadow-blue-50"
+              }`}
             >
-              <h3 className="text-lg font-semibold">{meddelande.message}</h3>
-              <p className="text-gray-700">{meddelande.description}</p>
-              <p className="text-sm text-gray-500">
-                Skapad: {new Date(meddelande.created_at).toLocaleString()}
-              </p>
-              <p className="text-sm text-gray-500">
-                Status: {meddelande.read_status}
-              </p>
-              <button
-                onClick={() => handleStatusUpdate(meddelande.id)}
-                className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
-                disabled={meddelande.read_status === "Read"} // Disable if already "Read"
-              >
-                {meddelande.read_status === "Read"
-                  ? "Already Read"
-                  : "Mark as Read"}
-              </button>
-            </li>
+              <div className="p-6">
+                {/* Header with badges */}
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Badge tone={meddelande.read_status === "Read" ? "gray" : "blue"}>
+                      {meddelande.read_status === "Read" ? "Läst" : "Nytt"}
+                    </Badge>
+                    {meddelande.homework_id && (
+                      <Badge tone="purple">
+                        Läx-relaterat
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    {new Date(meddelande.created_at).toLocaleDateString("sv-SE", {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit"
+                    })}
+                  </div>
+                </div>
+
+                {/* Message content */}
+                <div className="mb-4">
+                  <div className="text-gray-900 leading-relaxed whitespace-pre-wrap">
+                    {meddelande.message}
+                  </div>
+                  {meddelande.description && (
+                    <div className="mt-2 text-gray-600 text-sm">
+                      {meddelande.description}
+                    </div>
+                  )}
+                </div>
+
+                {/* Homework info if applicable */}
+                {meddelande.homework_id && (
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-purple-600">📚</span>
+                      <span className="text-purple-800 font-medium text-sm">
+                        Detta meddelande är kopplat till en läxa
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Action button */}
+                {meddelande.read_status !== "Read" && (
+                  <div className="flex justify-end">
+                    <button
+                      onClick={() => handleStatusUpdate(meddelande.id)}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 text-sm font-medium"
+                    >
+                      Markera som läst
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           ))}
-        </ul>
+        </div>
+      )}
+
+      {/* Summary */}
+      {meddelanden.length > 0 && (
+        <div className="mt-8 bg-gray-50 rounded-lg p-4">
+          <div className="flex items-center justify-between text-sm text-gray-600">
+            <span>Totalt {meddelanden.length} meddelanden</span>
+            <span>
+              {meddelanden.filter(m => m.read_status !== "Read").length} olästa
+            </span>
+          </div>
+        </div>
       )}
     </div>
   );

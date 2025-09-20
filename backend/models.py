@@ -323,7 +323,7 @@ class Message(Base):
     read_status = Column(String, default="Unread")  # New column for read_status
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-
+    homework_id = Column(Integer, ForeignKey('homework.id'), nullable=True)
     # Add user_id as a foreign key
     recipient_user_id = Column(Integer, ForeignKey("user.id"), nullable=False)
     sender_user_id = Column(Integer, ForeignKey("user.id"), nullable=False)
