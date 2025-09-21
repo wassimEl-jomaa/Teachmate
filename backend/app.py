@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
-from datetime import datetime, timezone
+from fastapi.responses import FileResponse
 from typing import List, Optional
-from fastapi import FastAPI, HTTPException, Depends, Security, status, Response
+from fastapi import FastAPI, HTTPException, Depends, Security, status, Response, Form, UploadFile, File
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi import Query
@@ -10,16 +10,22 @@ from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import update
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm import Session
+import shutil
+import os
+import logging
 from db_setup import get_db, create_databases
-from models import  Message, User, Token
+from models import Message, User, Token
 from auth import create_database_token, generate_token, get_current_user, get_password_hash, token_expiry
 from passlib.context import CryptContext
 from db_setup import get_db
 import crud
 import uvicorn
+from models import Homework_Submission
+from schemas import HomeworkSubmissionCreate, HomeworkSubmissionResponse, HomeworkSubmissionUpdate
 from schemas import RoleBase ,MessageBase,MessageCreate,MessageUpdate, SubjectClassLevelOut
 from schemas import UserBase, UserIn, UserOut,GetUser, UpdateUser,RoleBase, RoleOut,RoleCreate,RoleUpdate,SchoolBase
 from models import Recommended_Resource,Student_Homework
+from models import Homework_Submission
 from models import  User,Homework,Subject_Class_Level,Grade,Student_Homework,File_Attachment
 from models import Role ,School, Teacher, Student, Parent,Class_Level,Token,Subject,Guardian
 from schemas import UserOut,SchoolBase,SchoolCreate,SchoolUpdate,ClassLevelBase
@@ -46,12 +52,12 @@ def get_current_user(
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     return db_token.user
 app.add_middleware(
-        CORSMiddleware,  # type: ignore
-        allow_origins=["*"],
-        allow_methods=["*"],
-        allow_headers=["*"],
-        allow_credentials=True,
-    )
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 create_databases()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -1338,7 +1344,221 @@ def add_subject_class_level(
     db.commit()
     db.refresh(new_subject_class_level)
 
-    return new_subject_class_level   
+    return new_subject_class_level  
+
+
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Create your homework submission endpoint:
+
+@app.post("/homework_submissions/")
+async def create_homework_submission(
+    submission: HomeworkSubmissionCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Create a new homework submission.
+    """
+    try:
+        logger.info(f"Received submission data: {submission.dict()}")
+        
+        # Verify the student_homework exists and belongs to current user
+        student_homework = db.query(Student_Homework).filter(
+            Student_Homework.id == submission.student_homework_id
+        ).first()
+        
+        if not student_homework:
+            logger.error(f"Student homework not found for ID: {submission.student_homework_id}")
+            raise HTTPException(status_code=404, detail="Student homework not found")
+        
+        # Get the student record
+        student = db.query(Student).filter(Student.id == student_homework.student_id).first()
+        if not student:
+            logger.error(f"Student not found for student_homework: {submission.student_homework_id}")
+            raise HTTPException(status_code=404, detail="Student not found")
+        
+        # Verify the student belongs to current user
+        if student.user_id != current_user.id:
+            logger.error(f"User {current_user.id} not authorized for student {student.id}")
+            raise HTTPException(status_code=403, detail="Not authorized to submit for this homework")
+        
+        # Check if submission already exists
+        existing_submission = db.query(Homework_Submission).filter(
+            Homework_Submission.student_homework_id == submission.student_homework_id
+        ).first()
+        
+        if existing_submission:
+            logger.warning(f"Submission already exists for student_homework_id: {submission.student_homework_id}")
+            raise HTTPException(status_code=400, detail="Submission already exists for this homework")
+        
+        # Create new submission
+        new_submission = Homework_Submission(
+            student_homework_id=submission.student_homework_id,
+            submission_text=submission.submission_text,
+            submission_file_id=submission.submission_file_id,
+            submission_date=submission.submission_date,  # This will be stored as string in DB
+            status=submission.status,
+            is_late=submission.is_late
+        )
+        
+        db.add(new_submission)
+        db.commit()
+        db.refresh(new_submission)
+        
+        logger.info(f"Created submission with ID: {new_submission.id}")
+        
+        # Manually create the response to ensure proper date formatting
+        return {
+            "id": new_submission.id,
+            "student_homework_id": new_submission.student_homework_id,
+            "submission_text": new_submission.submission_text,
+            "submission_file_id": new_submission.submission_file_id,
+            "submission_date": str(new_submission.submission_date),  # Ensure it's a string
+            "status": new_submission.status,
+            "is_late": new_submission.is_late,
+            "teacher_feedback": getattr(new_submission, 'teacher_feedback', None),
+            "grade_value": getattr(new_submission, 'grade_value', None)
+        }
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        logger.error(f"Error creating submission: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to create submission: {str(e)}")
+
+
+# Get homework submissions with optional filtering
+@app.get("/homework_submissions/", response_model=list[dict])
+def get_homework_submissions(
+    student_homework_id: Optional[int] = None,
+    student_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Get homework submissions with optional filtering"""
+    query = db.query(Homework_Submission)
+    
+    if student_homework_id:
+        query = query.filter(Homework_Submission.student_homework_id == student_homework_id)
+    
+    if student_id:
+        query = query.join(Student_Homework).filter(Student_Homework.student_id == student_id)
+    
+    submissions = query.all()
+    
+    # Manually format the response to ensure proper date handling
+    result = []
+    for submission in submissions:
+        result.append({
+            "id": submission.id,
+            "student_homework_id": submission.student_homework_id,
+            "submission_text": submission.submission_text,
+            "submission_file_id": submission.submission_file_id,
+            "submission_date": str(submission.submission_date),  # Ensure it's a string
+            "status": submission.status,
+            "is_late": submission.is_late,
+            "teacher_feedback": getattr(submission, 'teacher_feedback', None),
+            "grade_value": getattr(submission, 'grade_value', None)
+        })
+    
+    return result
+
+@app.get("/files/{file_id}/download")
+async def download_file(
+    file_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Download a file by its ID"""
+    
+    # Get file attachment record
+    file_attachment = db.query(File_Attachment).filter(
+        File_Attachment.id == file_id
+    ).first()
+    
+    if not file_attachment:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Check if file exists on disk
+    if not os.path.exists(file_attachment.file_path):
+        raise HTTPException(status_code=404, detail="Physical file not found")
+    
+    # Return file for download
+    return FileResponse(
+        path=file_attachment.file_path,
+        filename=file_attachment.file_name or "download",
+        media_type='application/octet-stream'
+    )
+
+
+# Update your file upload endpoint:
+
+@app.post("/file_attachments")
+async def upload_file_attachment(
+    file: UploadFile = File(...),
+    description: str = Form(""),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Upload a file and create a File_Attachment record.
+    """
+    try:
+        logger.info(f"File upload attempt by user {current_user.id}: {file.filename}")
+        
+        # Ensure the user has the necessary permissions
+        if current_user.role.name not in ["Teacher", "Admin", "Student"]:
+            raise HTTPException(status_code=403, detail="Not authorized to upload files")
+
+        # Create uploads directory if it doesn't exist
+        upload_dir = "uploads/attachments"
+        os.makedirs(upload_dir, exist_ok=True)
+        
+        # Generate unique filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        file_extension = os.path.splitext(file.filename)[1] if file.filename else ""
+        unique_filename = f"{current_user.id}_{timestamp}{file_extension}"
+        file_path = os.path.join(upload_dir, unique_filename)
+        
+        # Save file to disk
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        logger.info(f"File saved to: {file_path}")
+        
+        # Create file attachment record in database
+        new_file_attachment = File_Attachment(
+            file_name=file.filename or unique_filename,
+            file_path=file_path,
+            description=description or f"File uploaded by {current_user.username}"
+        )
+        db.add(new_file_attachment)
+        db.commit()
+        db.refresh(new_file_attachment)
+        
+        logger.info(f"File attachment created with ID: {new_file_attachment.id}")
+        
+        return {
+            "id": new_file_attachment.id,
+            "file_name": new_file_attachment.file_name,
+            "file_path": new_file_attachment.file_path,
+            "description": new_file_attachment.description,
+            "message": "File uploaded successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"File upload failed: {str(e)}")
+        # Clean up file if database operation fails
+        if 'file_path' in locals() and os.path.exists(file_path):
+            os.remove(file_path)
+        raise HTTPException(status_code=500, detail=f"File upload failed: {str(e)}")
 @app.get("/subject_class_levels", response_model=List[SubjectClassLevelOut])
 def get_all_subject_class_levels(
     user_id: int = None,  # Optional user ID to filter by user
@@ -1800,22 +2020,96 @@ def add_file_attachment(
     db.refresh(new_file_attachment)
 
     return new_file_attachment
-@app.get("/file_attachments", response_model=List[FileAttachmentBase])
-def get_all_file_attachments(
-    current_user: User = Depends(get_current_user),  # Token validation and user authentication
-    db: Session = Depends(get_db)
+
+
+@app.get("/file_attachments/{file_attachment_id}")
+def get_file_attachment(
+    file_attachment_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
 ):
     """
-    Get all File_Attachment entries from the database.
+    Get a specific File_Attachment by ID.
     """
     # Ensure the user is authenticated
     if not current_user:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    # Fetch all File_Attachment entries
-    file_attachments = db.query(File_Attachment).all()
+    # Fetch the File_Attachment entry
+    file_attachment = db.query(File_Attachment).filter(
+        File_Attachment.id == file_attachment_id
+    ).first()
+    
+    if not file_attachment:
+        raise HTTPException(status_code=404, detail="File_Attachment not found")
 
-    return file_attachments  
+    return {
+        "id": file_attachment.id,
+        "file_name": file_attachment.file_name,
+        "file_path": file_attachment.file_path,
+        "description": file_attachment.description,
+        "created_at": file_attachment.created_at,
+        "updated_at": file_attachment.updated_at
+    }
+
+
+
+
+# Add the file upload endpoint
+@app.post("/file_attachments")
+async def add_file_attachment(
+    file: UploadFile = File(...),
+    description: str = Form(""),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Add a new File_Attachment to the database with file upload.
+    """
+    try:
+        # Ensure the user has the necessary permissions
+        if current_user.role.name not in ["Teacher", "Admin", "Student"]:
+            raise HTTPException(status_code=403, detail="Not authorized to upload files")
+
+        # Create uploads directory if it doesn't exist
+        upload_dir = "uploads/attachments"
+        os.makedirs(upload_dir, exist_ok=True)
+        
+        # Generate unique filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        file_extension = os.path.splitext(file.filename)[1] if file.filename else ""
+        unique_filename = f"{current_user.id}_{timestamp}{file_extension}"
+        file_path = os.path.join(upload_dir, unique_filename)
+        
+        # Save file to disk
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Create file attachment record in database
+        new_file_attachment = File_Attachment(
+            file_name=file.filename or unique_filename,
+            file_path=file_path,
+            description=description or f"File uploaded by {current_user.username}"
+        )
+        db.add(new_file_attachment)
+        db.commit()
+        db.refresh(new_file_attachment)
+        
+        return {
+            "id": new_file_attachment.id,
+            "file_name": new_file_attachment.file_name,
+            "file_path": new_file_attachment.file_path,
+            "description": new_file_attachment.description,
+            "message": "File uploaded successfully"
+        }
+        
+    except Exception as e:
+        # Clean up file if database operation fails
+        if 'file_path' in locals() and os.path.exists(file_path):
+            os.remove(file_path)
+        raise HTTPException(status_code=500, detail=f"File upload failed: {str(e)}")
+
+# ...rest of your existing endpoints...
 @app.put("/file_attachments/{file_attachment_id}", response_model=FileAttachmentBase)
 def update_file_attachment(
     file_attachment_id: int,

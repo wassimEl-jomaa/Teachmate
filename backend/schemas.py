@@ -271,19 +271,57 @@ class HomeworkOut(BaseModel):
     completed_at: Optional[datetime] = None
     subject_class_level_id: int
     file_attachment_id: Optional[int] = None
-
+    # Remove this line: is_late: str  # This field doesn't exist in Homework model
+    
     class Config:
         from_attributes = True
-  
+
+
+
+class HomeworkSubmissionCreate(BaseModel):
+    student_homework_id: int
+    submission_text: Optional[str] = ""
+    submission_file_id: Optional[int] = None
+    submission_date: str  # Keep as string for input
+    status: Optional[str] = "submitted"
+    is_late: Optional[str] = "No"
+
+class HomeworkSubmissionResponse(BaseModel):
+    id: int
+    student_homework_id: int
+    submission_text: Optional[str] = None
+    submission_file_id: Optional[int] = None
+    submission_date: str  # Convert datetime to string
+    status: str
+    is_late: str
+    teacher_feedback: Optional[str] = None
+    grade_value: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
+        # Add custom serializer for datetime fields
+        json_encoders = {
+            datetime: lambda v: v.strftime('%Y-%m-%d') if v else None,
+            date: lambda v: v.strftime('%Y-%m-%d') if v else None
+        }
+
+class HomeworkSubmissionUpdate(BaseModel):
+    submission_text: Optional[str] = None
+    teacher_feedback: Optional[str] = None
+    grade_value: Optional[str] = None
+    status: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
+
 
 class SubjectClassLevelBase(BaseModel):
-    id: int
     class_level_id: int
     subject_id: int
     teacher_id: int
 
     class Config:
-        from_attributes = True   
+        from_attributes = True
 class SubjectClassLevelOut(SubjectClassLevelBase):
     id: int
     subject: Optional[SubjectBase] = None  # Include the Subject relationship

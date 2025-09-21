@@ -57,7 +57,7 @@ class Student_Homework(Base):
     homework = relationship("Homework", back_populates="student_homework")
     file_attachment = relationship("File_Attachment", back_populates="student_homework")
     grade = relationship("Grade", back_populates="student_homework")
-
+    homework_submission = relationship("Homework_Submission", back_populates="student_homework", uselist=False)
 class Guardian(Base):
     __tablename__ = "guardian"
 
@@ -290,7 +290,36 @@ class Class_Level(Base):
         back_populates="class_level",
         overlaps="subject_class_level,subject,class_level"
     )
- 
+class Homework_Submission(Base):
+    __tablename__ = "homework_submission"
+
+    id = Column(Integer, primary_key=True, index=True)
+    student_homework_id = Column(Integer, ForeignKey("student_homework.id", ondelete="CASCADE"), nullable=False)
+    submission_text = Column(Text, nullable=True)  # Text answer from student
+    submission_file_id = Column(Integer, ForeignKey("file_attachment.id"), nullable=True)  # File attachment
+    submission_date = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    is_late = Column(String, default="No", nullable=False)  # "Yes" or "No"
+    status = Column(String, default="submitted", nullable=False)  # "submitted", "graded", "returned"
+    
+    # Teacher feedback and grading
+    teacher_feedback = Column(Text, nullable=True)
+    grade_value = Column(String, nullable=True)  # Grade given by teacher
+    graded_at = Column(DateTime, nullable=True)
+    graded_by_teacher_id = Column(Integer, ForeignKey("teacher.id"), nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    # Relationships
+    student_homework = relationship("Student_Homework", back_populates="homework_submission")
+    submission_file = relationship("File_Attachment", foreign_keys=[submission_file_id])
+    graded_by_teacher = relationship("Teacher", foreign_keys=[graded_by_teacher_id])
+
+    # Fixed table args - ensure proper tuple syntax
+    __table_args__ = (
+        UniqueConstraint("student_homework_id", name="uq_homework_submission_student_homework"),
+    )
 class Grade(Base):
     __tablename__ = "grade"
 

@@ -14,9 +14,15 @@ const ManageBetyg = ({ userId }) => {
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [studentHomeworks, setStudentHomeworks] = useState([]);    // filtered from /student_homeworks
   const [selectedStudentHwId, setSelectedStudentHwId] = useState("");
+  const [selectedHomework, setSelectedHomework] = useState(null);   // for homework details modal
+
+  // homework viewing modal states
+  const [showHomeworkModal, setShowHomeworkModal] = useState(false);
+  const [homeworkSubmission, setHomeworkSubmission] = useState(null);
 
   // grades
   const [allGrades, setAllGrades] = useState([]);                  // from /grades
+  
   // Only show grades added by the logged-in teacher
   const teacherUserId = useMemo(() => {
     if (!token) return null;
@@ -118,6 +124,89 @@ const ManageBetyg = ({ userId }) => {
     if (!selectedStudentId) return [];
     return studentHomeworks.filter(sh => String(sh.student?.id) === String(selectedStudentId));
   }, [studentHomeworks, selectedStudentId]);
+
+  // View homework details
+  const viewHomework = async (studentHomework) => {
+    try {
+      setLoading(true);
+      setSelectedHomework(studentHomework);
+      
+      // Fetch homework submission if exists
+      try {
+        const submissionRes = await axios.get(
+          `http://127.0.0.1:8000/homework_submissions/?student_homework_id=${studentHomework.id}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (submissionRes.data && submissionRes.data.length > 0) {
+          const submission = submissionRes.data[0];
+          
+          // If there's a file, fetch file details
+          if (submission.submission_file_id) {
+            try {
+              const fileRes = await axios.get(
+                `http://127.0.0.1:8000/file_attachments/${submission.submission_file_id}`,
+                { headers: { Authorization: `Bearer ${token}` } }
+              );
+              submission.file_details = fileRes.data;
+            } catch (fileErr) {
+              console.log("Could not fetch file details:", fileErr);
+            }
+          }
+          
+          setHomeworkSubmission(submission);
+        } else {
+          setHomeworkSubmission(null);
+        }
+      } catch (submissionErr) {
+        console.log("No submission found or error:", submissionErr);
+        setHomeworkSubmission(null);
+      }
+      
+      setShowHomeworkModal(true);
+    } catch (e) {
+      setErr("Kunde inte ladda läxdetaljer.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const closeHomeworkModal = () => {
+    setShowHomeworkModal(false);
+    setSelectedHomework(null);
+    setHomeworkSubmission(null);
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return "-";
+    return new Date(dateString).toLocaleDateString("sv-SE");
+  };
+
+  // Add function to download/view files
+  const handleViewSubmissionFile = async (fileId, fileName) => {
+    try {
+      const response = await axios.get(
+        `http://127.0.0.1:8000/files/${fileId}/download`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          responseType: 'blob'
+        }
+      );
+      
+      // Create blob URL and download
+      const blob = new Blob([response.data]);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName || 'submission_file';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      setErr('Kunde inte ladda ner filen.');
+    }
+  };
 
   // 4) add grade
   const addGrade = async (e) => {
@@ -268,6 +357,52 @@ const ManageBetyg = ({ userId }) => {
         </div>
       </div>
 
+      {/* Student Homeworks List with View Button */}
+      {selectedStudentId && studentHomeworksForStudent.length > 0 && (
+        <div className="mb-8">
+          <h3 className="text-xl font-bold mb-3">Elevens Läxor</h3>
+          <div className="grid gap-4">
+            {studentHomeworksForStudent.map(sh => (
+              <div key={sh.id} className="border rounded-lg p-4 bg-gray-50">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-lg text-gray-800">
+                      {sh.homework?.title || `Läxa #${sh.homework_id}`}
+                    </h4>
+                    <p className="text-gray-600 text-sm mb-2">
+                      {sh.homework?.description || "Ingen beskrivning"}
+                    </p>
+                    <div className="text-xs text-gray-500 space-y-1">
+                      <div>Förfallodatum: {formatDate(sh.homework?.due_date)}</div>
+                      <div>Status: {sh.is_completed ? "✅ Slutförd" : "⏳ Ej slutförd"}</div>
+                      <div>Prioritet: {sh.homework?.priority || "Normal"}</div>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2 ml-4">
+                    <button
+                      onClick={() => viewHomework(sh)}
+                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                    >
+                      📖 Visa Läxa
+                    </button>
+                    <button
+                      onClick={() => setSelectedStudentHwId(sh.id)}
+                      className={`px-4 py-2 rounded text-sm transition-colors ${
+                        selectedStudentHwId === sh.id.toString()
+                          ? "bg-green-600 text-white"
+                          : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                      }`}
+                    >
+                      {selectedStudentHwId === sh.id.toString() ? "✓ Vald" : "Välj för Betyg"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Add new grade */}
       <form onSubmit={addGrade} className="mb-8">
         <h3 className="text-xl font-bold mb-3">Lägg till nytt betyg</h3>
@@ -369,6 +504,214 @@ const ManageBetyg = ({ userId }) => {
             </li>
           ))}
         </ul>
+      )}
+
+      {/* Homework Detail Modal */}
+      {showHomeworkModal && selectedHomework && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[95vh] overflow-y-auto">
+            <div className="p-6">
+              {/* Modal Header */}
+              <div className="flex items-start justify-between mb-6">
+                <div className="flex-1">
+                  <h2 className="text-2xl font-bold text-gray-800 mb-2">
+                    {selectedHomework.homework?.title || "Okänd läxa"}
+                  </h2>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={`px-2 py-1 text-xs rounded-full ${
+                      selectedHomework.homework?.priority === "high" 
+                        ? "bg-red-100 text-red-700" 
+                        : selectedHomework.homework?.priority === "low"
+                        ? "bg-amber-100 text-amber-700"
+                        : "bg-blue-100 text-blue-700"
+                    }`}>
+                      {selectedHomework.homework?.priority || "Normal"}
+                    </span>
+                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${
+                      selectedHomework.is_completed 
+                        ? "text-green-700 bg-green-100 ring-1 ring-green-200"
+                        : "text-amber-700 bg-amber-100 ring-1 ring-amber-200"
+                    }`}>
+                      {selectedHomework.is_completed ? "✅ Slutförd" : "⏳ Ej slutförd"}
+                    </span>
+                    {homeworkSubmission && (
+                      <span className="inline-flex items-center gap-1 text-blue-700 bg-blue-100 ring-1 ring-blue-200 px-2 py-1 rounded-full text-xs font-semibold">
+                        📝 Svar inlämnat
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={closeHomeworkModal}
+                  className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Left Column - Homework Details */}
+                <div className="space-y-6">
+                  {/* Description */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-800 mb-2">📝 Beskrivning</h3>
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <p className="text-gray-700 whitespace-pre-wrap">
+                        {selectedHomework.homework?.description || "Ingen beskrivning tillgänglig"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Due Date and Subject */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800 mb-2">📅 Förfallodatum</h3>
+                      <div className="bg-gray-50 p-4 rounded-lg">
+                        <p className="font-medium text-gray-800">
+                          {formatDate(selectedHomework.homework?.due_date)}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800 mb-2">📚 Status</h3>
+                      <div className="bg-gray-50 p-4 rounded-lg">
+                        <p className="text-gray-700">
+                          {selectedHomework.homework?.status || "Ej angivet"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Student Info */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-800 mb-2">👤 Elev</h3>
+                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                      <p className="text-blue-800">
+                        {selectedHomework.student?.user?.first_name} {selectedHomework.student?.user?.last_name}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column - Student Submission */}
+                <div className="space-y-6">
+                  <div className="bg-gray-50 p-6 rounded-lg">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">✍️ Elevens Svar</h3>
+                    
+                    {homeworkSubmission ? (
+                      <div className="space-y-4">
+                        {/* Submission text */}
+                        {homeworkSubmission.submission_text && (
+                          <div className="bg-white p-4 rounded-lg border border-gray-200">
+                            <p className="text-sm text-gray-600 mb-2">Elevens textssvar:</p>
+                            <p className="text-gray-800 whitespace-pre-wrap">
+                              {homeworkSubmission.submission_text}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Submitted File with details */}
+                        {homeworkSubmission.submission_file_id && (
+                          <div className="bg-white p-4 rounded-lg border border-gray-200">
+                            <p className="text-sm text-gray-600 mb-2">Inlämnad fil:</p>
+                            <div className="flex items-center justify-between bg-gray-50 p-3 rounded border">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-blue-600">📎</span>
+                                  <span className="text-sm font-medium text-gray-700">
+                                    {homeworkSubmission.file_details?.file_name || `submission_${homeworkSubmission.id}`}
+                                  </span>
+                                </div>
+                                {homeworkSubmission.file_details && (
+                                  <div className="text-xs text-gray-500 ml-5">
+                                    <div>Beskrivning: {homeworkSubmission.file_details.description || 'Ingen beskrivning'}</div>
+                                  </div>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => handleViewSubmissionFile(
+                                  homeworkSubmission.submission_file_id,
+                                  homeworkSubmission.file_details?.file_name || `submission_${homeworkSubmission.id}`
+                                )}
+                                className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors ml-3"
+                              >
+                                📥 Ladda ner
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Show message if no text or file */}
+                        {!homeworkSubmission.submission_text && !homeworkSubmission.submission_file_id && (
+                          <div className="bg-gray-100 p-4 rounded-lg text-center">
+                            <p className="text-gray-600">
+                              Eleven har skickat in läxan men utan text eller fil.
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Submission info */}
+                        <div className="text-xs text-gray-500 space-y-1">
+                          <div>Inlämnat: {formatDate(homeworkSubmission.submission_date)}</div>
+                          <div>Status: {homeworkSubmission.status}</div>
+                          <div className={`${homeworkSubmission.is_late === "Yes" ? "text-red-600" : "text-green-600"}`}>
+                            {homeworkSubmission.is_late === "Yes" ? "⚠️ Sent inlämnat" : "✅ I tid"}
+                          </div>
+                        </div>
+
+                        {/* Teacher feedback section */}
+                        {homeworkSubmission.teacher_feedback && (
+                          <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                            <p className="text-sm text-gray-600 mb-2">Din feedback:</p>
+                            <p className="text-yellow-800">
+                              {homeworkSubmission.teacher_feedback}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Grade */}
+                        {homeworkSubmission.grade_value && (
+                          <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                            <p className="text-sm text-gray-600 mb-2">Betyg:</p>
+                            <p className="text-green-800 font-semibold text-lg">
+                              {homeworkSubmission.grade_value}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="bg-gray-100 p-4 rounded-lg text-center">
+                        <p className="text-gray-600">
+                          Eleven har inte lämnat in något svar än.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="mt-6 flex gap-3">
+                <button
+                  onClick={() => {
+                    setSelectedStudentHwId(selectedHomework.id);
+                    closeHomeworkModal();
+                  }}
+                  className="flex-1 py-2.5 rounded-lg font-semibold bg-green-600 hover:bg-green-700 text-white transition-colors"
+                >
+                  📊 Sätt Betyg på denna Läxa
+                </button>
+                <button
+                  onClick={closeHomeworkModal}
+                  className="flex-1 py-2.5 rounded-lg font-semibold bg-gray-300 hover:bg-gray-400 text-gray-700 transition-colors"
+                >
+                  Stäng
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
