@@ -476,3 +476,40 @@ class UserIn(BaseModel):
     teacher: Optional["TeacherUpdate"] = None  # Optional field for TeacherIn
     student: Optional["StudentUpdate"] = None  # Optional field for StudentIn
     parent: Optional["ParentUpdate"] = None  # Optional field for ParentIn
+
+
+
+class ScoreRequest(BaseModel):
+    submission_id: Optional[int] = Field(None, description="ID of submission to score")
+    text: Optional[str] = Field(None, description="Text to score (if not using submission_id)")
+    subject: Optional[str] = Field("mathematics", description="Subject area for scoring context")
+
+class ScoreResponse(BaseModel):
+    submission_id: Optional[int]
+    predicted_score: Optional[float] = Field(None, description="Predicted score 0-100")
+    predicted_band: Optional[str] = Field(None, description="Predicted grade band A-F")
+    confidence: float = Field(description="Confidence level 0-1")
+    reason: str = Field(description="Explanation of prediction or why no prediction")
+    processing_time_ms: float = Field(description="Processing time in milliseconds")
+    timestamp: datetime = Field(description="When prediction was made")
+    model_used: Optional[str] = Field(description="AI model used for prediction")
+
+class AIScoreCreate(BaseModel):
+    homework_submission_id: int
+    predicted_score: Optional[Decimal]
+    confidence_level: Optional[Decimal]
+    model_used: Optional[str] = "EduMate_Scorer_v1"
+    analysis_data: Optional[str]
+
+class AIScoreResponse(BaseModel):
+    id: int
+    homework_submission_id: int
+    predicted_score: Optional[Decimal]
+    confidence_level: Optional[Decimal]
+    model_used: Optional[str]
+    analysis_data: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True

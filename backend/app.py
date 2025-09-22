@@ -21,6 +21,10 @@ from db_setup import get_db
 import crud
 import uvicorn
 from models import Homework_Submission
+from ml_service import scoring_service
+from models import AI_Score, AI_Model_Metrics
+from schemas import ScoreRequest, ScoreResponse, AIScoreCreate
+import time
 from schemas import HomeworkSubmissionCreate, HomeworkSubmissionResponse, HomeworkSubmissionUpdate
 from schemas import RoleBase ,MessageBase,MessageCreate,MessageUpdate, SubjectClassLevelOut
 from schemas import UserBase, UserIn, UserOut,GetUser, UpdateUser,RoleBase, RoleOut,RoleCreate,RoleUpdate,SchoolBase
@@ -2264,6 +2268,206 @@ def delete_recommended_resource(
     db.commit()
 
     return {"message": f"Recommended_Resource with ID {resource_id} has been deleted successfully"} 
+
+
+# Add these ML endpoints at the end of your app.py file:
+
+@app.post("/ml/score", response_model=ScoreResponse)
+async def score_submission(
+    request: ScoreRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Score a homework submission using AI analysis"""
+    start_time = time.time()
+    
+    try:
+        # Get submission if ID provided
+        submission = None
+        if request.submission_id:
+            submission = db.query(Homework_Submission).filter(
+                Homework_Submission.id == request.submission_id
+            ).first()
+            if not submission:
+                raise HTTPException(status_code=404, detail="Submission not found")
+        
+        # Use provided text or submission text
+        text_to_score = request.text or (submission.submission_text if submission else "")
+        
+        if not text_to_score:
+            raise HTTPException(status_code=400, detail="No text provided for scoring")
+        
+        # Get AI prediction
+        prediction = scoring_service.score_submission(text_to_score, request.subject or "mathematics")
+        
+        # Save to AI_Score table if submission_id provided and prediction successful
+        if request.submission_id and submission and prediction.score is not None:
+            # Check if AI score already exists
+            existing_score = db.query(AI_Score).filter(
+                AI_Score.homework_submission_id == request.submission_id
+            ).first()
+            
+            if existing_score:
+                # Update existing
+                existing_score.predicted_score = Decimal(str(prediction.score))
+                existing_score.confidence_level = Decimal(str(prediction.confidence))
+                existing_score.model_used = prediction.model_used
+                existing_score.analysis_data = json.dumps(prediction.analysis_data)
+                existing_score.updated_at = datetime.now(timezone.utc)
+            else:
+                # Create new
+                ai_score = AI_Score(
+                    homework_submission_id=request.submission_id,
+                    predicted_score=Decimal(str(prediction.score)),
+                    confidence_level=Decimal(str(prediction.confidence)),
+                    model_used=prediction.model_used,
+                    analysis_data=json.dumps(prediction.analysis_data)
+                )
+                db.add(ai_score)
+            
+            # Update model metrics
+            await update_model_metrics(db, prediction.model_used, True)
+            
+            db.commit()
+        
+        processing_time = (time.time() - start_time) * 1000
+        
+        return ScoreResponse(
+            submission_id=request.submission_id,
+            predicted_score=prediction.score,
+            predicted_band=prediction.band,
+            confidence=prediction.confidence,
+            reason=prediction.reason,
+            processing_time_ms=processing_time,
+            timestamp=datetime.now(timezone.utc),
+            model_used=prediction.model_used
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Update model metrics for failure
+        if request.submission_id:
+            await update_model_metrics(db, "EduMate_Scorer_v1", False)
+        raise HTTPException(status_code=500, detail=f"Scoring failed: {str(e)}")
+
+# Add these imports at the top with your existing imports:
+from ml_service import scoring_service
+
+# Add these ML endpoints before the final if __name__ == "__main__": section:
+
+@app.post("/api/ml/score-submission")
+async def score_submission_endpoint(
+    submission_id: Optional[int] = None,
+    text: Optional[str] = None,
+    subject: str = "mathematics",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Score a homework submission using AI analysis.
+    Can score by submission_id or by providing text directly.
+    """
+    try:
+        # Get submission if ID provided
+        submission = None
+        if submission_id:
+            submission = db.query(Homework_Submission).filter(
+                Homework_Submission.id == submission_id,
+                Homework_Submission.student_id == current_user.id if current_user.role == "student" else True
+            ).first()
+            
+            if not submission:
+                raise HTTPException(status_code=404, detail="Submission not found")
+        
+        # Use provided text or submission text
+        text_to_score = text or (submission.submission_text if submission else "")
+        
+        if not text_to_score:
+            raise HTTPException(status_code=400, detail="No text provided for scoring")
+        
+        # Get AI prediction
+        prediction = scoring_service.score_submission(text_to_score, subject)
+        
+        return {
+            "submission_id": submission_id,
+            "predicted_score": prediction.score,
+            "predicted_band": prediction.band,
+            "confidence": prediction.confidence,
+            "reason": prediction.reason,
+            "processing_time_ms": prediction.processing_time_ms,
+            "model_used": prediction.model_used,
+            "analysis_breakdown": {
+                "content_quality": prediction.analysis_data.get("content_quality", 0),
+                "mathematical_rigor": prediction.analysis_data.get("mathematical_rigor", 0),
+                "structure_organization": prediction.analysis_data.get("structure_organization", 0),
+                "language_clarity": prediction.analysis_data.get("language_clarity", 0),
+                "subject_relevance": prediction.analysis_data.get("subject_relevance", 0),
+                "completeness": prediction.analysis_data.get("completeness", 0)
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI scoring failed: {str(e)}")
+
+@app.post("/api/ml/score-text")
+async def score_text_endpoint(
+    text: str,
+    subject: str = "mathematics"
+):
+    """
+    Test endpoint to score any text without authentication.
+    Useful for testing and demonstrations.
+    """
+    try:
+        prediction = scoring_service.score_submission(text, subject)
+        
+        return {
+            "predicted_score": prediction.score,
+            "predicted_band": prediction.band,
+            "confidence": prediction.confidence,
+            "reason": prediction.reason,
+            "processing_time_ms": prediction.processing_time_ms,
+            "model_used": prediction.model_used,
+            "analysis_breakdown": {
+                "content_quality": prediction.analysis_data.get("content_quality", 0),
+                "mathematical_rigor": prediction.analysis_data.get("mathematical_rigor", 0),
+                "structure_organization": prediction.analysis_data.get("structure_organization", 0),
+                "language_clarity": prediction.analysis_data.get("language_clarity", 0),
+                "subject_relevance": prediction.analysis_data.get("subject_relevance", 0),
+                "completeness": prediction.analysis_data.get("completeness", 0)
+            }
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI scoring failed: {str(e)}")
+
+@app.get("/api/ml/scoring-stats")
+async def get_scoring_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get statistics about AI scoring vs human scoring for comparison.
+    Only available to teachers and admins.
+    """
+    if current_user.role not in ["teacher", "admin"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    try:
+        # This would compare AI scores with human scores
+        # For now, return basic stats
+        return {
+            "model_version": "EduMate_Scorer_v1",
+            "total_submissions_scored": 0,  # Could track this in database
+            "average_confidence": 0.75,
+            "status": "operational"
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get stats: {str(e)}")
 app.include_router(student_hw_router)                                                             
 if __name__ == '__main__':
     uvicorn.run(app)

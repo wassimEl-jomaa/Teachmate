@@ -30,6 +30,7 @@ import ManageTeachers from "./pages/ManageTeacher";
 import ShowAllHomework from "./pages/Homework/ShowAllHomework";
 import AddHomeworkOneStudent from "./pages/Homework/AddHomeworkOneStudent";
 import AddHomeworkAllClass from "./pages/Homework/AddHomeworkAllClass";
+import AIScoring from './pages/AIScoring';  
 
 const App = () => {
   var message = null;
@@ -76,6 +77,17 @@ const App = () => {
         <Route path="/minsida" element={<MinSida userId={userId} />} />
         {/* Student Betyg page from sidebar */}
         <Route path="/minbetyg" element={<BetygForm />} />
+         {/* AI Scoring Routes - Fixed with proper import */}
+        <Route 
+          path="/ai-scoring" 
+          element={
+            role === "Teacher" || role === "Admin" ? (
+              <AIScoring />
+            ) : (
+              <div className="p-6 text-red-500">Access Denied - Teachers Only</div>
+            )
+          } 
+        />
         <Route path="/admin" element={<Admin />} />
         <Route path="/personliglarplan" element={<PersonligLärplan />} />
         <Route path="/aboutus" element={<AboutUs />} />
