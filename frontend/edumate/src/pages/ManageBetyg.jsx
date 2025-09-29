@@ -338,70 +338,36 @@ const ManageBetyg = ({ userId }) => {
           </select>
         </div>
 
-        {/* Select student's homework */}
-        <div>
-          <label className="block text-sm font-semibold mb-1">Läxa</label>
-          <select
-            className="w-full border rounded px-3 py-2"
-            value={selectedStudentHwId}
-            onChange={(e) => setSelectedStudentHwId(e.target.value)}
-            disabled={!selectedStudentId}
-          >
-            <option value="">— Välj läxa —</option>
-            {studentHomeworksForStudent.map(sh => (
-              <option key={sh.id} value={sh.id}>
-                {sh?.homework?.title || `HW #${sh.homework_id}`} (id:{sh.id})
-              </option>
-            ))}
-          </select>
-        </div>
+       {/* Select student's homework */}
+<div>
+  <label className="block text-sm font-semibold mb-1">Läxa</label>
+  <select
+    className="w-full border rounded px-3 py-2"
+    value={selectedStudentHwId}
+    onChange={(e) => {
+      setSelectedStudentHwId(e.target.value);
+      const selectedHw = studentHomeworksForStudent.find(
+        (sh) => String(sh.id) === e.target.value
+      );
+      setSelectedHomework(selectedHw || null);
+      setHomeworkSubmission(null); // Reset submission details
+      if (selectedHw) {
+        viewHomework(selectedHw); // Fetch and display homework details
+      }
+    }}
+    disabled={!selectedStudentId}
+  >
+    <option value="">— Välj läxa —</option>
+    {studentHomeworksForStudent.map((sh) => (
+      <option key={sh.id} value={sh.id}>
+        {sh?.homework?.title || `HW #${sh.homework_id}`} (id:{sh.id})
+      </option>
+    ))}
+  </select>
+</div>
       </div>
 
-      {/* Student Homeworks List with View Button */}
-      {selectedStudentId && studentHomeworksForStudent.length > 0 && (
-        <div className="mb-8">
-          <h3 className="text-xl font-bold mb-3">Elevens Läxor</h3>
-          <div className="grid gap-4">
-            {studentHomeworksForStudent.map(sh => (
-              <div key={sh.id} className="border rounded-lg p-4 bg-gray-50">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <h4 className="font-semibold text-lg text-gray-800">
-                      {sh.homework?.title || `Läxa #${sh.homework_id}`}
-                    </h4>
-                    <p className="text-gray-600 text-sm mb-2">
-                      {sh.homework?.description || "Ingen beskrivning"}
-                    </p>
-                    <div className="text-xs text-gray-500 space-y-1">
-                      <div>Förfallodatum: {formatDate(sh.homework?.due_date)}</div>
-                      <div>Status: {sh.is_completed ? "✅ Slutförd" : "⏳ Ej slutförd"}</div>
-                      <div>Prioritet: {sh.homework?.priority || "Normal"}</div>
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-2 ml-4">
-                    <button
-                      onClick={() => viewHomework(sh)}
-                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-                    >
-                      📖 Visa Läxa
-                    </button>
-                    <button
-                      onClick={() => setSelectedStudentHwId(sh.id)}
-                      className={`px-4 py-2 rounded text-sm transition-colors ${
-                        selectedStudentHwId === sh.id.toString()
-                          ? "bg-green-600 text-white"
-                          : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                      }`}
-                    >
-                      {selectedStudentHwId === sh.id.toString() ? "✓ Vald" : "Välj för Betyg"}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      
 
       {/* Add new grade */}
       <form onSubmit={addGrade} className="mb-8">

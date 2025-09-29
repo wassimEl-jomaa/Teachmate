@@ -1,7 +1,8 @@
 from __future__ import annotations
+from decimal import Decimal
 from pydantic import BaseModel, field_validator, model_validator
 from pydantic import ConfigDict
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 from datetime import date, datetime
 from enum import Enum
 from typing import Literal
@@ -513,3 +514,16 @@ class AIScoreResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class FeedbackRequest(BaseModel):
+    predicted_band: str
+    subject: str
+
+class FeedbackResponse(BaseModel):
+    feedback_text: str
+    resources: List[Dict[str, str]]
+class SaveFeedbackRequest(BaseModel):
+    homework_submission_id: int
+    feedback_text: str
+    improvement_suggestions: str
+    model_used: str    

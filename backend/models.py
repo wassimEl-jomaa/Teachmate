@@ -357,10 +357,20 @@ class AI_Score(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     homework_submission_id = Column(Integer, ForeignKey("homework_submission.id", ondelete="CASCADE"), nullable=False)
-    predicted_score = Column(Numeric(5,2), nullable=True)
-    confidence_level = Column(Numeric(3,2), nullable=True)
-    model_used = Column(String(50), nullable=True)
-    analysis_data = Column(Text, nullable=True)
+    
+    # T2 Migration columns - new fields added
+    predicted_score = Column(Integer, nullable=True)  # 0-100 score
+    predicted_band = Column(String(2), nullable=True)  # A, B, C, D, E, F
+    prediction_explainer = Column(Text, nullable=True)  # Brief reason/features
+    prediction_model_version = Column(String(32), nullable=True)  # e.g., "tfidf_v1"
+    predicted_at = Column(DateTime, nullable=True)  # When prediction was made
+    
+    # Existing columns (keeping for backward compatibility)
+    confidence_level = Column(Numeric(3,2), nullable=True)  # 0.00-1.00
+    model_used = Column(String(50), nullable=True)  # Deprecated - use prediction_model_version
+    analysis_data = Column(Text, nullable=True)  # JSON data for detailed breakdown
+    
+    # Timestamps
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     

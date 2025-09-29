@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from decimal import Decimal
 from fastapi.responses import FileResponse
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException, Depends, Security, status, Response, Form, UploadFile, File
@@ -14,7 +15,7 @@ import shutil
 import os
 import logging
 from db_setup import get_db, create_databases
-from models import Message, User, Token
+from models import AI_Feedback, Message, User, Token
 from auth import create_database_token, generate_token, get_current_user, get_password_hash, token_expiry
 from passlib.context import CryptContext
 from db_setup import get_db
@@ -23,7 +24,7 @@ import uvicorn
 from models import Homework_Submission
 from ml_service import scoring_service
 from models import AI_Score, AI_Model_Metrics
-from schemas import ScoreRequest, ScoreResponse, AIScoreCreate
+from schemas import FeedbackRequest, FeedbackResponse, SaveFeedbackRequest, ScoreRequest, ScoreResponse, AIScoreCreate
 import time
 from schemas import HomeworkSubmissionCreate, HomeworkSubmissionResponse, HomeworkSubmissionUpdate
 from schemas import RoleBase ,MessageBase,MessageCreate,MessageUpdate, SubjectClassLevelOut
@@ -40,6 +41,7 @@ from schemas import GuardianCreate,GuardianUpdate,GuardianOut,HomeworkCreate,Hom
 from schemas import SubjectClassLevelBase,SubjectClassLevelCreate,SubjectClassLevelUpdate,StudentHomeworkBase
 from schemas import GradeBase,GradeCreate,GradeUpdate,StudentHomeworkCreate,StudentHomeworkUpdate,TeacherOut,StudentHomeworkOut
 from schemas import FileAttachmentBase,FileAttachmentCreate,FileAttachmentUpdate,RecommendedResourceBase,RecommendedResourceCreate,RecommendedResourceUpdate
+from ml_service import FeedbackService
 # Initialize the FastAPI app
 app = FastAPI()
 security = HTTPBearer()
@@ -2270,19 +2272,23 @@ def delete_recommended_resource(
     return {"message": f"Recommended_Resource with ID {resource_id} has been deleted successfully"} 
 
 
-# Add these ML endpoints at the end of your app.py file:
+
+
+from ml_service import scoring_service  # Importera ScoringService-instansen
 
 @app.post("/ml/score", response_model=ScoreResponse)
-async def score_submission(
+async def score_submission_t3(
     request: ScoreRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Score a homework submission using AI analysis"""
+    """
+    T3 API Contract: Score a student submission using AI/ML models
+    """
     start_time = time.time()
-    
+
     try:
-        # Get submission if ID provided
+        # Validera att inlämningen existerar om submission_id är angivet
         submission = None
         if request.submission_id:
             submission = db.query(Homework_Submission).filter(
@@ -2290,138 +2296,72 @@ async def score_submission(
             ).first()
             if not submission:
                 raise HTTPException(status_code=404, detail="Submission not found")
-        
-        # Use provided text or submission text
-        text_to_score = request.text or (submission.submission_text if submission else "")
-        
-        if not text_to_score:
-            raise HTTPException(status_code=400, detail="No text provided for scoring")
-        
-        # Get AI prediction
-        prediction = scoring_service.score_submission(text_to_score, request.subject or "mathematics")
-        
-        # Save to AI_Score table if submission_id provided and prediction successful
-        if request.submission_id and submission and prediction.score is not None:
-            # Check if AI score already exists
+
+        # Anropa ScoringService för att poängsätta inlämningen
+        scoring_result = scoring_service.score_submission(
+            submission_text=request.answer_text,
+            subject=request.subject
+        )
+
+        # Spara resultatet i databasen om submission_id är angivet
+        if request.submission_id and submission:
             existing_score = db.query(AI_Score).filter(
                 AI_Score.homework_submission_id == request.submission_id
             ).first()
-            
+
             if existing_score:
-                # Update existing
-                existing_score.predicted_score = Decimal(str(prediction.score))
-                existing_score.confidence_level = Decimal(str(prediction.confidence))
-                existing_score.model_used = prediction.model_used
-                existing_score.analysis_data = json.dumps(prediction.analysis_data)
+                # Uppdatera befintlig post
+                existing_score.predicted_score = scoring_result.score
+                existing_score.predicted_band = scoring_result.band
+                existing_score.prediction_explainer = scoring_result.reason
+                existing_score.prediction_model_version = scoring_result.model_used
+                existing_score.predicted_at = datetime.now(timezone.utc)
+                existing_score.confidence_level = Decimal(str(scoring_result.confidence))
                 existing_score.updated_at = datetime.now(timezone.utc)
             else:
-                # Create new
+                # Skapa en ny post
                 ai_score = AI_Score(
                     homework_submission_id=request.submission_id,
-                    predicted_score=Decimal(str(prediction.score)),
-                    confidence_level=Decimal(str(prediction.confidence)),
-                    model_used=prediction.model_used,
-                    analysis_data=json.dumps(prediction.analysis_data)
+                    predicted_score=scoring_result.score,
+                    predicted_band=scoring_result.band,
+                    prediction_explainer=scoring_result.reason,
+                    prediction_model_version=scoring_result.model_used,
+                    predicted_at=datetime.now(timezone.utc),
+                    confidence_level=Decimal(str(scoring_result.confidence)),
+                    model_used=scoring_result.model_used,
+                    analysis_data=json.dumps(scoring_result.analysis_data)
                 )
                 db.add(ai_score)
-            
-            # Update model metrics
-            await update_model_metrics(db, prediction.model_used, True)
-            
+
             db.commit()
-        
-        processing_time = (time.time() - start_time) * 1000
-        
+
+        # Returnera resultatet
         return ScoreResponse(
-            submission_id=request.submission_id,
-            predicted_score=prediction.score,
-            predicted_band=prediction.band,
-            confidence=prediction.confidence,
-            reason=prediction.reason,
-            processing_time_ms=processing_time,
-            timestamp=datetime.now(timezone.utc),
-            model_used=prediction.model_used
+            predicted_score=scoring_result.score,
+            predicted_band=scoring_result.band,
+            prediction_model_version=scoring_result.model_used,
+            prediction_explainer=scoring_result.reason
         )
-        
+
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
-        # Update model metrics for failure
-        if request.submission_id:
-            await update_model_metrics(db, "EduMate_Scorer_v1", False)
-        raise HTTPException(status_code=500, detail=f"Scoring failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Model error: {str(e)}")
 
-# Add these imports at the top with your existing imports:
-from ml_service import scoring_service
-
-# Add these ML endpoints before the final if __name__ == "__main__": section:
-
-@app.post("/api/ml/score-submission")
-async def score_submission_endpoint(
-    submission_id: Optional[int] = None,
-    text: Optional[str] = None,
-    subject: str = "mathematics",
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Score a homework submission using AI analysis.
-    Can score by submission_id or by providing text directly.
-    """
-    try:
-        # Get submission if ID provided
-        submission = None
-        if submission_id:
-            submission = db.query(Homework_Submission).filter(
-                Homework_Submission.id == submission_id,
-                Homework_Submission.student_id == current_user.id if current_user.role == "student" else True
-            ).first()
-            
-            if not submission:
-                raise HTTPException(status_code=404, detail="Submission not found")
-        
-        # Use provided text or submission text
-        text_to_score = text or (submission.submission_text if submission else "")
-        
-        if not text_to_score:
-            raise HTTPException(status_code=400, detail="No text provided for scoring")
-        
-        # Get AI prediction
-        prediction = scoring_service.score_submission(text_to_score, subject)
-        
-        return {
-            "submission_id": submission_id,
-            "predicted_score": prediction.score,
-            "predicted_band": prediction.band,
-            "confidence": prediction.confidence,
-            "reason": prediction.reason,
-            "processing_time_ms": prediction.processing_time_ms,
-            "model_used": prediction.model_used,
-            "analysis_breakdown": {
-                "content_quality": prediction.analysis_data.get("content_quality", 0),
-                "mathematical_rigor": prediction.analysis_data.get("mathematical_rigor", 0),
-                "structure_organization": prediction.analysis_data.get("structure_organization", 0),
-                "language_clarity": prediction.analysis_data.get("language_clarity", 0),
-                "subject_relevance": prediction.analysis_data.get("subject_relevance", 0),
-                "completeness": prediction.analysis_data.get("completeness", 0)
-            }
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI scoring failed: {str(e)}")
-
+# Keep your existing endpoints but update them to work with the new system
 @app.post("/api/ml/score-text")
 async def score_text_endpoint(
-    text: str,
-    subject: str = "mathematics"
+    text: str = Query(..., description="Text to score"),
+    subject: str = Query("Mathematics", description="Subject area")
 ):
     """
     Test endpoint to score any text without authentication.
     Useful for testing and demonstrations.
     """
     try:
+        # Use the scoring service
         prediction = scoring_service.score_submission(text, subject)
         
         return {
@@ -2431,43 +2371,155 @@ async def score_text_endpoint(
             "reason": prediction.reason,
             "processing_time_ms": prediction.processing_time_ms,
             "model_used": prediction.model_used,
-            "analysis_breakdown": {
-                "content_quality": prediction.analysis_data.get("content_quality", 0),
-                "mathematical_rigor": prediction.analysis_data.get("mathematical_rigor", 0),
-                "structure_organization": prediction.analysis_data.get("structure_organization", 0),
-                "language_clarity": prediction.analysis_data.get("language_clarity", 0),
-                "subject_relevance": prediction.analysis_data.get("subject_relevance", 0),
-                "completeness": prediction.analysis_data.get("completeness", 0)
-            }
+            "analysis_breakdown": prediction.analysis_data
         }
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI scoring failed: {str(e)}")
 
-@app.get("/api/ml/scoring-stats")
-async def get_scoring_stats(
+# Health check endpoint
+@app.get("/api/ml/health")
+async def ml_health_check():
+    """Check if the ML service is healthy"""
+    return {
+        "status": "healthy",
+        "model_version": "tfidf_v1",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "endpoints": {
+            "score": "/ml/score",
+            "score_text": "/api/ml/score-text",
+            "health": "/api/ml/health"
+        }
+    }
+
+# Feedback and resources data
+feedback_templates = {
+    "A": "Excellent work! Your solution is well-structured and demonstrates a deep understanding. Keep up the great work!",
+    "B": "Good job! Your solution is clear and mostly complete. Focus on refining details for an even better result.",
+    "C": "Your solution is acceptable but could use more detail and clarity. Review the key concepts and try to elaborate further.",
+    "D": "Your solution shows some understanding but lacks depth and structure. Consider revisiting the topic and practicing similar problems.",
+    "E": "Your solution is incomplete and misses key elements. Focus on understanding the basics and building a stronger foundation.",
+    "F": "Your solution does not meet the requirements. Start by reviewing the fundamental concepts and seek help if needed."
+}
+
+recommended_resources = {
+    "mathematics": {
+        "A": [
+            {"title": "Advanced Algebra", "link": "https://www.khanacademy.org/math/algebra"},
+            {"title": "Challenging Math Problems", "link": "https://brilliant.org/"}
+        ],
+        "B": [
+            {"title": "Intermediate Algebra", "link": "https://www.khanacademy.org/math/algebra"},
+            {"title": "Practice Problems", "link": "https://www.ixl.com/math/"}
+        ],
+        # ... other grade bands ...
+    },
+    "science": {
+        "A": [
+            {"title": "Advanced Biology Topics", "link": "https://www.khanacademy.org/science/biology"},
+            {"title": "Scientific Research", "link": "https://www.nature.com/"}
+        ],
+        # ... other grade bands ...
+    }
+}
+
+# Request and response models
+@app.post("/ml/feedback", response_model=FeedbackResponse)
+def get_feedback(
+    request: FeedbackRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Provide feedback and recommended resources based on the predicted grade band and subject.
+    Save the feedback in the AI_Feedback table.
+    """
+    try:
+        # Generera feedback och resurser med FeedbackService
+        feedback_data = FeedbackService.generate_feedback(
+            predicted_band=request.predicted_band,
+            subject=request.subject
+        )
+
+        # Spara feedback i databasen
+        submission = db.query(Homework_Submission).filter(
+            Homework_Submission.id == request.submission_id
+        ).first()
+
+        if not submission:
+            raise HTTPException(status_code=404, detail="Submission not found")
+
+        ai_feedback = AI_Feedback(
+            homework_submission_id=submission.id,
+            feedback_text=feedback_data["feedback_text"],
+            feedback_type="AI-generated",
+            improvement_suggestions="Focus on improving keyword coverage and structure.",
+            model_used="tfidf_v1"
+        )
+        db.add(ai_feedback)
+        db.commit()
+
+        return FeedbackResponse(
+            feedback_text=feedback_data["feedback_text"],
+            resources=feedback_data["resources"]
+        )
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate feedback: {str(e)}")
+
+    return FeedbackResponse(feedback_text=feedback_text, resources=resources)
+@app.get("/homework_submissions/{submission_id}/feedback", response_model=List[dict])
+def get_feedback_for_submission(
+    submission_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Get statistics about AI scoring vs human scoring for comparison.
-    Only available to teachers and admins.
+    Fetch feedback for a specific homework submission.
     """
-    if current_user.role not in ["teacher", "admin"]:
-        raise HTTPException(status_code=403, detail="Access denied")
-    
-    try:
-        # This would compare AI scores with human scores
-        # For now, return basic stats
-        return {
-            "model_version": "EduMate_Scorer_v1",
-            "total_submissions_scored": 0,  # Could track this in database
-            "average_confidence": 0.75,
-            "status": "operational"
+    feedback_records = db.query(AI_Feedback).filter(
+        AI_Feedback.homework_submission_id == submission_id
+    ).all()
+
+    if not feedback_records:
+        raise HTTPException(status_code=404, detail="No feedback found for this submission")
+
+    return [
+        {
+            "feedback_text": feedback.feedback_text,
+            "feedback_type": feedback.feedback_type,
+            "improvement_suggestions": feedback.improvement_suggestions,
+            "created_at": feedback.created_at
         }
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get stats: {str(e)}")
+        for feedback in feedback_records
+    ]
+@app.post("/api/ml/save-feedback")
+def save_feedback(request: SaveFeedbackRequest, db: Session = Depends(get_db)):
+    """
+    Save AI feedback to the database.
+    """
+    print("Received payload:", request.dict())  # Debugging log
+
+    # Validate that the homework submission exists
+    submission = db.query(Homework_Submission).filter(
+        Homework_Submission.id == request.homework_submission_id
+    ).first()
+
+    if not submission:
+        raise HTTPException(status_code=404, detail="Homework submission not found")
+
+    # Save feedback to the AI_Feedback table
+    ai_feedback = AI_Feedback(
+        homework_submission_id=request.homework_submission_id,
+        feedback_text=request.feedback_text,
+        improvement_suggestions=request.improvement_suggestions,
+        model_used=request.model_used
+    )
+    db.add(ai_feedback)
+    db.commit()
+
+    return {"message": "Feedback saved successfully"}
 app.include_router(student_hw_router)                                                             
 if __name__ == '__main__':
     uvicorn.run(app)

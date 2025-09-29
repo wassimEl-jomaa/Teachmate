@@ -409,6 +409,54 @@ class ScoringService:
             return 'E'
         else:
             return 'F'
+feedback_templates = {
+    "A": "Excellent work! Your solution is well-structured and demonstrates a deep understanding. Keep up the great work!",
+    "B": "Good job! Your solution is clear and mostly complete. Focus on refining details for an even better result.",
+    "C": "Your solution is acceptable but could use more detail and clarity. Review the key concepts and try to elaborate further.",
+    "D": "Your solution shows some understanding but lacks depth and structure. Consider revisiting the topic and practicing similar problems.",
+    "E": "Your solution is incomplete and misses key elements. Focus on understanding the basics and building a stronger foundation.",
+    "F": "Your solution does not meet the requirements. Start by reviewing the fundamental concepts and seek help if needed."
+}
 
+recommended_resources = {
+    "mathematics": {
+        "A": [
+            {"title": "Advanced Algebra", "link": "https://www.khanacademy.org/math/algebra"},
+            {"title": "Challenging Math Problems", "link": "https://brilliant.org/"}
+        ],
+        "B": [
+            {"title": "Intermediate Algebra", "link": "https://www.khanacademy.org/math/algebra"},
+            {"title": "Practice Problems", "link": "https://www.ixl.com/math/"}
+        ],
+        # ... other grade bands ...
+    },
+    "science": {
+        "A": [
+            {"title": "Advanced Biology Topics", "link": "https://www.khanacademy.org/science/biology"},
+            {"title": "Scientific Research", "link": "https://www.nature.com/"}
+        ],
+        # ... other grade bands ...
+    }
+}
+
+class FeedbackService:
+    """Service for generating feedback and recommended resources."""
+
+    @staticmethod
+    def generate_feedback(predicted_band: str, subject: str):
+        """Generate feedback and recommended resources based on grade band and subject."""
+        if predicted_band not in feedback_templates:
+            raise ValueError("Invalid grade band")
+
+        if subject not in recommended_resources:
+            raise ValueError("Invalid subject")
+
+        feedback_text = feedback_templates[predicted_band]
+        resources = recommended_resources[subject].get(predicted_band, [])
+
+        return {
+            "feedback_text": feedback_text,
+            "resources": resources
+        }
 # Global instance
 scoring_service = ScoringService()
