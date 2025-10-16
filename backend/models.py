@@ -193,7 +193,7 @@ class Homework(Base):
         back_populates="homework",
         overlaps="homework,student"
     )
-
+    scoring_criteria = relationship("Scoring_Criteria", back_populates="homework")  # Relation till Scoring_Criteria
 class Subject(Base):
     __tablename__ = "subject"
 
@@ -295,7 +295,8 @@ class Homework_Submission(Base):
     # AI relationships
     ai_scores = relationship("AI_Score", back_populates="homework_submission", cascade="all, delete-orphan")
     ai_feedback = relationship("AI_Feedback", back_populates="homework_submission", cascade="all, delete-orphan")
-
+    #scoring_criteria relation
+    scoring_criteria = relationship("Scoring_Criteria", back_populates="homework_submission", cascade="all, delete-orphan")
     __table_args__ = (
         UniqueConstraint("student_homework_id", name="uq_homework_submission_student_homework"),
     )
@@ -398,18 +399,35 @@ class Scoring_Criteria(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     subject_id = Column(Integer, ForeignKey("subject.id", ondelete="SET NULL"), nullable=True)
-    homework_type = Column(String(100), nullable=True)
-    criteria_name = Column(String(200), nullable=False)
-    criteria_description = Column(Text, nullable=True)
-    max_points = Column(Integer, default=100)
-    keywords = Column(Text, nullable=True)
-    weight = Column(Numeric(3,2), default=1.0)
-    is_active = Column(Boolean, default=True)
+    homework_id = Column(Integer, ForeignKey("homework.id", ondelete="CASCADE"), nullable=True)  # Relation till Homework
+    homework_submission_id = Column(Integer, ForeignKey("homework_submission.id", ondelete="CASCADE"), nullable=True)  # Relation till Homework_Submission
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-    
+
+    # Nya fält
+    topic = Column(String, nullable=True)
+    difficulty_1to5 = Column(Integer, nullable=True)
+    steps_count = Column(Integer, nullable=True)
+    steps_completeness = Column(Numeric(5, 2), nullable=True)
+    reasoning_quality = Column(Numeric(5, 2), nullable=True)
+    method_appropriateness = Column(Numeric(5, 2), nullable=True)
+    representation_use = Column(Numeric(5, 2), nullable=True)
+    explanation_clarity = Column(Numeric(5, 2), nullable=True)
+    units_handling = Column(Numeric(5, 2), nullable=True)
+    edge_case_handling = Column(Numeric(5, 2), nullable=True)
+    language_quality = Column(Numeric(5, 2), nullable=True)
+    computational_errors = Column(Integer, nullable=True)
+    conceptual_errors = Column(Integer, nullable=True)
+    correctness_pct = Column(Numeric(5, 2), nullable=True)
+    time_minutes = Column(Integer, nullable=True)
+    external_aid_suspected = Column(Boolean, default=False)
+    originality_score = Column(Numeric(5, 2), nullable=True)
+    rubric_points = Column(Integer, nullable=True)
+
     # Relationships
     subject = relationship("Subject", back_populates="scoring_criteria")
+    homework = relationship("Homework", back_populates="scoring_criteria")  # Relation till Homework
+    homework_submission = relationship("Homework_Submission", back_populates="scoring_criteria")  # Relation till Homework_Submission
 
 class AI_Model_Metrics(Base):
     __tablename__ = "ai_model_metrics"

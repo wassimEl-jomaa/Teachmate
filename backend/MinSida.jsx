@@ -342,7 +342,6 @@ const fetchAiScore = async (submissionId) => {
       const submission = submissionRes.data[0];
       setHomeworkSubmission(submission);
       fetchGrade(submission.id); // Ensure this ID is correct
-      fetchAiScore(submission.id);
     } else {
       setHomeworkSubmission(null);
       setGrade(null);

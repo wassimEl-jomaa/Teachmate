@@ -1,3 +1,8 @@
+from pathlib import Path
+import joblib
+import pandas as pd
+from xgboost import XGBClassifier
+from typing import Dict, Any
 import re
 import time
 import json
@@ -17,6 +22,101 @@ class ScorePrediction:
     analysis_data: Dict[str, Any]
     model_used: str = "EduMate_Scorer_v1"
 
+# Paths
+MODEL_DIR = Path(__file__).resolve().parent / "model"
+
+# Globals (start empty, load on startup)
+_model = None
+_topic_encoder = None
+_feature_order = None
+
+
+def init_models():
+    """Load all ML artefacts safely"""
+    global _model, _topic_encoder, _feature_order
+
+    try:
+        m = XGBClassifier()
+        m.load_model(MODEL_DIR / "trained_model.json")
+        _model = m
+        print("✅ Model loaded")
+    except Exception as e:
+        print(f"❌ Could not load model: {e}")
+
+    try:
+        _topic_encoder = joblib.load(MODEL_DIR / "topic_encoder.pkl")
+        print("✅ Topic encoder loaded")
+    except Exception as e:
+        print(f"❌ Could not load topic_encoder.pkl: {e}")
+
+    try:
+        _feature_order = joblib.load(MODEL_DIR / "feature_order.pkl")
+        print("✅ Feature order loaded")
+    except Exception as e:
+        print(f"❌ Could not load feature_order.pkl: {e}")
+
+
+def get_model():
+    if _model is None:
+        raise RuntimeError("Model not loaded – did you call init_models()?")
+    return _model
+
+
+def get_topic_encoder():
+    if _topic_encoder is None:
+        raise RuntimeError("Topic encoder not loaded – did you call init_models()?")
+    return _topic_encoder
+
+
+def get_feature_order():
+    if _feature_order is None:
+        raise RuntimeError("Feature order not loaded – did you call init_models()?")
+    return _feature_order
+
+class InferenceService:
+    def _preprocess(self, payload: Dict[str, Any]) -> pd.DataFrame:
+        df = pd.DataFrame([payload])
+        # Encode 'topic'
+        df["topic"] = _topic_encoder.transform(df["topic"])
+        # Ordna kolumner exakt som vid träning
+        df = df[_feature_order]
+        return df
+
+    def predict(self, payload: Dict[str, Any]):
+        df = self._preprocess(payload)
+        pred = _model.predict(df)[0]
+        proba = _model.predict_proba(df)[0]
+        classes = list(_model.classes_)
+        probs = {cls: float(p) for cls, p in zip(classes, proba)}
+        return pred, probs
+
+class FeedbackService:
+    """
+    Minimal AI-feedback: returnerar motiveringar baserat på features.
+    Bygg vidare med egna regler/LLM om du vill.
+    """
+    def generate(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        # Exempel: enkel regelbaserad feedback
+        reasons = []
+        if payload.get("conceptual_errors", 0) > 0:
+            reasons.append("Minska konceptuella fel genom att repetera nyckelbegrepp.")
+        if payload.get("computational_errors", 0) > 1:
+            reasons.append("Dubbelkolla beräkningar och räknesätt.")
+        if payload.get("steps_completeness", 1.0) < 0.6:
+            reasons.append("Gör redovisningen mer komplett med tydliga mellanled.")
+        if payload.get("reasoning_quality", 1.0) < 0.6:
+            reasons.append("Motivera stegen tydligare och koppla till regler/satser.")
+        if payload.get("units_handling", 1.0) < 0.6:
+            reasons.append("Säkerställ korrekta enheter i varje steg.")
+        if not reasons:
+            reasons.append("Bra jobbat! Fortsätt på samma sätt med tydliga resonemang.")
+
+        return {
+            "summary": "Automatisk återkoppling för att förbättra lösningen.",
+            "suggestions": reasons
+        }
+
+feedback_service = FeedbackService()
 class ScoringService:
     """AI-powered homework scoring service using existing AI models"""
     
@@ -459,4 +559,6 @@ class FeedbackService:
             "resources": resources
         }
 # Global instance
+inference_service = InferenceService()
+feedback_service = FeedbackService()
 scoring_service = ScoringService()

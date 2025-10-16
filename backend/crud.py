@@ -1,11 +1,14 @@
 from datetime import date
+import datetime
 from typing import List
 from sqlalchemy.orm import Session
-
-
-from models import  User
+from sqlalchemy.sql.expression import func
+import re
+from collections import Counter
+from models import  Scoring_Criteria, User
 from fastapi import Depends, HTTPException
 from sqlalchemy.orm.exc import NoResultFound
+from models import Homework, Homework_Submission, Student_Homework
 
 def validate(data):
     # Ensure either user_id or arskurs_id is provided, but not both
@@ -22,3 +25,6 @@ def add_user(database: Session, user_params: User):
     database.commit()
     database.refresh(user)
     return user
+# New function to extract topic from description
+
+#

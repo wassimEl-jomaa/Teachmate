@@ -69,5 +69,9 @@ This section has moved here: [https://facebook.github.io/create-react-app/docs/d
 
 This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
 
+Kör träningsskriptet för att generera modellen och artefakterna:
+   ```bash
+   python train_model.py
+   
 python -m uvicorn app:app --reload
 source .venv/Scripts/activate

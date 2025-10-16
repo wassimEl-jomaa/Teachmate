@@ -8,31 +8,56 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi import Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials
+
+from joblib import logger
+import json
+
 from sqlalchemy import update
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm import Session
 import shutil
 import os
 import logging
+from pydantic import BaseModel
+import pandas as pd
+import joblib
+import ml_utils
 from db_setup import get_db, create_databases
-from models import AI_Feedback, Message, User, Token
+from models import AI_Feedback, Message, Scoring_Criteria, User, Token
 from auth import create_database_token, generate_token, get_current_user, get_password_hash, token_expiry
 from passlib.context import CryptContext
-from db_setup import get_db
 import crud
 import uvicorn
 from models import Homework_Submission
-from ml_service import scoring_service
+from ml_service import ScoringService, scoring_service
+from ml_service import ScoringService, scoring_service
 from models import AI_Score, AI_Model_Metrics
-from schemas import FeedbackRequest, FeedbackResponse, SaveFeedbackRequest, ScoreRequest, ScoreResponse, AIScoreCreate
+from ml_utils import (
+    calculate_steps_count,
+    estimate_expected_steps,
+    calculate_steps_completeness,
+    calculate_reasoning_quality,
+    calculate_method_appropriateness,
+    calculate_representation_use,
+    calculate_explanation_clarity,
+    calculate_units_handling,
+    calculate_language_quality,
+    calculate_computational_errors,
+    calculate_conceptual_errors,
+    calculate_correctness_pct,
+    calculate_time_minutes,
+    calculate_external_aid_suspected,
+    calculate_rubric_points_v2,predict_grade
+)
+
 import time
-from schemas import HomeworkSubmissionCreate, HomeworkSubmissionResponse, HomeworkSubmissionUpdate
-from schemas import RoleBase ,MessageBase,MessageCreate,MessageUpdate, SubjectClassLevelOut
-from schemas import UserBase, UserIn, UserOut,GetUser, UpdateUser,RoleBase, RoleOut,RoleCreate,RoleUpdate,SchoolBase
+
 from models import Recommended_Resource,Student_Homework
 from models import Homework_Submission
 from models import  User,Homework,Subject_Class_Level,Grade,Student_Homework,File_Attachment
 from models import Role ,School, Teacher, Student, Parent,Class_Level,Token,Subject,Guardian
+from models import Token, AI_Score, AI_Model_Metrics
+
 from schemas import UserOut,SchoolBase,SchoolCreate,SchoolUpdate,ClassLevelBase
 from schemas import ClassLevelCreate,ClassLevelUpdate,SubjectBase,SubjectUpdate,SubjectCreate
 from schemas import StudentBase,StudentCreate,StudentUpdate,StudentOut,TeacherUpdate,TeacherCreate,TeacherBase
@@ -41,7 +66,13 @@ from schemas import GuardianCreate,GuardianUpdate,GuardianOut,HomeworkCreate,Hom
 from schemas import SubjectClassLevelBase,SubjectClassLevelCreate,SubjectClassLevelUpdate,StudentHomeworkBase
 from schemas import GradeBase,GradeCreate,GradeUpdate,StudentHomeworkCreate,StudentHomeworkUpdate,TeacherOut,StudentHomeworkOut
 from schemas import FileAttachmentBase,FileAttachmentCreate,FileAttachmentUpdate,RecommendedResourceBase,RecommendedResourceCreate,RecommendedResourceUpdate
+from schemas import HomeworkSubmissionCreate, HomeworkSubmissionResponse, HomeworkSubmissionUpdate
+from schemas import RoleBase ,MessageBase,MessageCreate,MessageUpdate, SubjectClassLevelOut
+from schemas import UserBase, UserIn, UserOut,GetUser, UpdateUser,RoleBase, RoleOut,RoleCreate,RoleUpdate,SchoolBase
+from schemas import FeedbackRequest, FeedbackResponse, SaveFeedbackRequest, ScoreRequest, ScoreResponse, AIScoreCreate
+from ml_service import inference_service, feedback_service 
 from ml_service import FeedbackService
+from ml_service import get_model, get_topic_encoder, get_feature_order
 # Initialize the FastAPI app
 app = FastAPI()
 security = HTTPBearer()
@@ -70,8 +101,31 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
+# ✅ Configure proper Python logger
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+# ==========================================================
+# 🧠 Load Machine Learning Model and Encoders
+# ==========================================================
+MODEL_DIR = os.path.join(os.path.dirname(__file__), "model")
 
+model = joblib.load(os.path.join(MODEL_DIR, "trained_model.pkl"))
+feature_order = joblib.load(os.path.join(MODEL_DIR, "feature_order.pkl"))
+grade_encoder = joblib.load(os.path.join(MODEL_DIR, "grade_encoder.pkl"))
+topic_encoder = joblib.load(os.path.join(MODEL_DIR, "topic_encoder.pkl"))
 
+print("✅ ML model and encoders loaded successfully!")
+# ==========================================================
+# 🤖 Load Teacher Feedback Model
+# ==========================================================
+try:
+    feedback_model = joblib.load(os.path.join(MODEL_DIR, "teacher_feedback_model.pkl"))
+    feedback_vectorizer = joblib.load(os.path.join(MODEL_DIR, "teacher_feedback_vectorizer.pkl"))
+    print("✅ Teacher feedback model loaded successfully!")
+except Exception as e:
+    feedback_model = None
+    feedback_vectorizer = None
+    print(f"⚠️ Could not load teacher feedback model: {e}")
 
 @app.post("/login")
 def login(email: str, password: str, db: Session = Depends(get_db)):
@@ -85,6 +139,9 @@ def login(email: str, password: str, db: Session = Depends(get_db)):
   
 
     return token_data
+
+
+
 @app.post("/logout")
 def logout(
     credentials: HTTPAuthorizationCredentials = Security(security),
@@ -164,7 +221,9 @@ def register(
     database.commit()
     database.refresh(new_user)
     return new_user    
-@app.get("/users/", response_model=List[UserOut])
+
+user_router = APIRouter(tags=["Users"])
+@user_router.get("/users/", response_model=List[UserOut])
 def read_users(current_user: User = Depends(get_current_user),
     database: Session = Depends(get_db)):
     """
@@ -176,7 +235,7 @@ def read_users(current_user: User = Depends(get_current_user),
         raise HTTPException(status_code=404, detail="No users found")
 
     return users
-@app.get("/user-profile")
+@user_router.get("/user-profile")
 def get_user_profile(current_user: User = Depends(get_current_user)):
     """
     Retrieve the profile of the currently authenticated user.
@@ -188,7 +247,7 @@ def get_user_profile(current_user: User = Depends(get_current_user)):
         "first_name": current_user.first_name,
         "last_name": current_user.last_name,
     }
-@app.get("/users/{user_id}", response_model=UserOut)
+@user_router.get("/users/{user_id}", response_model=UserOut)
 def get_user_by_id(
     user_id: int,
     current_user: User = Depends(get_current_user),  # Validate token and authenticate user
@@ -202,7 +261,7 @@ def get_user_by_id(
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
-@app.post("/users/", response_model=UserOut)
+@user_router.post("/users/", response_model=UserOut)
 def add_users(
     user_params: UserIn,
     current_user: User = Depends(get_current_user),  # Validate token and authenticate user
@@ -266,7 +325,7 @@ def add_users(
     database.refresh(new_user)
     return new_user
     
-@app.post("/get_user_by_email_and_password")
+@user_router.post("/get_user_by_email_and_password")
 def get_user_by_email_and_password(
     user: GetUser,
     db: Session = Depends(get_db)
@@ -279,7 +338,7 @@ def get_user_by_email_and_password(
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     return create_database_token(db_user, db)
-@app.delete("/users/{user_id}")
+@user_router.delete("/users/{user_id}")
 def delete_user_view(
     user_id: int,
     current_user: User = Depends(get_current_user),  # Validate token and authenticate user
@@ -317,7 +376,7 @@ def delete_user_view(
     database.commit()
 
     return {"message": f"User with ID {user_id} has been deleted successfully"}
-@app.put("/users/{user_id}", response_model=UserBase)
+@user_router.put("/users/{user_id}", response_model=UserBase)
 def update_user_view(
     user_id: int,
     update_data: UpdateUser,
@@ -1216,6 +1275,7 @@ def add_homework(
     if status_norm not in ("pending", "completed"):
         raise HTTPException(status_code=422, detail="status must be 'pending' or 'completed'")
 
+    # Skapa ny läxa
     new_hw = Homework(
         title=homework_data.title,
         description=homework_data.description,
@@ -1228,6 +1288,21 @@ def add_homework(
     db.add(new_hw)
     db.commit()
     db.refresh(new_hw)
+
+    # Extrahera topic och beräkna difficulty_1to5
+    topic = ml_utils.extract_topic_from_description(homework_data.description)
+    difficulty = ml_utils.calculate_difficulty_from_description(homework_data.description)
+
+    # Lägg till i Scoring_Criteria
+    new_scoring_criteria = Scoring_Criteria(
+        homework_id=new_hw.id,
+        topic=topic,
+        difficulty_1to5=difficulty
+    )
+    db.add(new_scoring_criteria)
+    db.commit()
+
+    # Returnera endast `new_hw` som matchar `HomeworkOut`
     return new_hw
 @app.post("/student_homeworks", response_model=StudentHomeworkOut)
 def create_student_homework(
@@ -1354,90 +1429,242 @@ def add_subject_class_level(
 
 
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
-# Create your homework submission endpoint:
 
-@app.post("/homework_submissions/")
+from ml_utils import predict_grade
+
+@app.post("/homework_submissions/", response_model=HomeworkSubmissionResponse)
 async def create_homework_submission(
     submission: HomeworkSubmissionCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: Student = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    """
-    Create a new homework submission.
-    """
+    """Create or update a student's homework submission, predict grade, and store AI feedback."""
     try:
-        logger.info(f"Received submission data: {submission.dict()}")
-        
-        # Verify the student_homework exists and belongs to current user
-        student_homework = db.query(Student_Homework).filter(
-            Student_Homework.id == submission.student_homework_id
-        ).first()
-        
+        logger.info(f"📥 Received submission data: {submission.dict()}")
+
+        # --- Validate ownership and existence ---
+        student_homework = (
+            db.query(Student_Homework)
+            .filter(Student_Homework.id == submission.student_homework_id)
+            .first()
+        )
         if not student_homework:
-            logger.error(f"Student homework not found for ID: {submission.student_homework_id}")
             raise HTTPException(status_code=404, detail="Student homework not found")
-        
-        # Get the student record
+
         student = db.query(Student).filter(Student.id == student_homework.student_id).first()
         if not student:
-            logger.error(f"Student not found for student_homework: {submission.student_homework_id}")
             raise HTTPException(status_code=404, detail="Student not found")
-        
-        # Verify the student belongs to current user
+
         if student.user_id != current_user.id:
-            logger.error(f"User {current_user.id} not authorized for student {student.id}")
             raise HTTPException(status_code=403, detail="Not authorized to submit for this homework")
-        
-        # Check if submission already exists
-        existing_submission = db.query(Homework_Submission).filter(
-            Homework_Submission.student_homework_id == submission.student_homework_id
-        ).first()
-        
-        if existing_submission:
-            logger.warning(f"Submission already exists for student_homework_id: {submission.student_homework_id}")
-            raise HTTPException(status_code=400, detail="Submission already exists for this homework")
-        
-        # Create new submission
-        new_submission = Homework_Submission(
-            student_homework_id=submission.student_homework_id,
-            submission_text=submission.submission_text,
-            submission_file_id=submission.submission_file_id,
-            submission_date=submission.submission_date,  # This will be stored as string in DB
-            status=submission.status,
-            is_late=submission.is_late
+
+        # --- Create or update submission ---
+        existing_submission = (
+            db.query(Homework_Submission)
+            .filter(Homework_Submission.student_homework_id == submission.student_homework_id)
+            .first()
         )
-        
-        db.add(new_submission)
-        db.commit()
-        db.refresh(new_submission)
-        
-        logger.info(f"Created submission with ID: {new_submission.id}")
-        
-        # Manually create the response to ensure proper date formatting
-        return {
-            "id": new_submission.id,
-            "student_homework_id": new_submission.student_homework_id,
-            "submission_text": new_submission.submission_text,
-            "submission_file_id": new_submission.submission_file_id,
-            "submission_date": str(new_submission.submission_date),  # Ensure it's a string
-            "status": new_submission.status,
-            "is_late": new_submission.is_late,
-            "teacher_feedback": getattr(new_submission, 'teacher_feedback', None),
-            "grade_value": getattr(new_submission, 'grade_value', None)
+
+        if existing_submission:
+            logger.info(f"🔁 Updating existing submission ID {existing_submission.id}")
+            existing_submission.submission_text = submission.submission_text
+            existing_submission.submission_file_id = submission.submission_file_id
+            existing_submission.submission_date = submission.submission_date
+            existing_submission.status = submission.status
+            existing_submission.is_late = submission.is_late
+            db.commit()
+            db.refresh(existing_submission)
+            new_submission = existing_submission
+        else:
+            logger.info("🆕 Creating new submission...")
+            new_submission = Homework_Submission(
+                student_homework_id=submission.student_homework_id,
+                submission_text=submission.submission_text,
+                submission_file_id=submission.submission_file_id,
+                submission_date=submission.submission_date,
+                status=submission.status,
+                is_late=submission.is_late,
+            )
+            db.add(new_submission)
+            db.commit()
+            db.refresh(new_submission)
+
+        # --- Retrieve scoring criteria ---
+        scoring = (
+            db.query(Scoring_Criteria)
+            .filter(Scoring_Criteria.homework_id == student_homework.homework_id)
+            .first()
+        )
+        if not scoring:
+            raise HTTPException(status_code=404, detail="Scoring criteria not found for this homework")
+
+        # --- Calculate scoring metrics ---
+        steps_count = calculate_steps_count(submission.submission_text)
+        expected_steps = estimate_expected_steps(scoring.topic, scoring.difficulty_1to5)
+        steps_completeness = round(min(steps_count / expected_steps, 1.0), 2)
+        reasoning_quality = calculate_reasoning_quality(submission.submission_text)
+        method_appropriateness = calculate_method_appropriateness(
+            submission.submission_text, student_homework.homework.description
+        )
+        representation_use = calculate_representation_use(submission.submission_text)
+        explanation_clarity = calculate_explanation_clarity(submission.submission_text)
+        units_handling = calculate_units_handling(submission.submission_text)
+        language_quality = calculate_language_quality(submission.submission_text)
+        computational_errors = calculate_computational_errors(submission.submission_text)
+        conceptual_errors = calculate_conceptual_errors(submission.submission_text)
+        correctness_pct = calculate_correctness_pct(submission.submission_text, expected_answer="")
+        time_minutes = calculate_time_minutes(datetime.now(), datetime.now())
+        external_aid_suspected_score = calculate_external_aid_suspected(submission.submission_text)
+        external_aid_suspected = external_aid_suspected_score > 0.5
+        originality_score = round(1.0 - external_aid_suspected_score, 2)
+        rubric_points = calculate_rubric_points_v2(
+            method_appropriateness, computational_errors, explanation_clarity, units_handling
+        )
+
+        # --- Prepare feature dict ---
+        features = {
+            "topic": scoring.topic,
+            "difficulty_1to5": scoring.difficulty_1to5,
+            "steps_count": steps_count,
+            "steps_completeness": steps_completeness,
+            "reasoning_quality": reasoning_quality,
+            "method_appropriateness": method_appropriateness,
+            "representation_use": representation_use,
+            "explanation_clarity": explanation_clarity,
+            "units_handling": units_handling,
+            "language_quality": language_quality,
+            "computational_errors": computational_errors,
+            "conceptual_errors": conceptual_errors,
+            "correctness_pct": correctness_pct,
+            "originality_score": originality_score,
+            "rubric_points": rubric_points,
         }
-        
-    except HTTPException:
-        # Re-raise HTTP exceptions as-is
-        raise
+
+        # --- Predict grade ---
+        predicted_grade = predict_grade(model, feature_order, grade_encoder, topic_encoder, features)
+
+        # --- Generate AI Teacher Feedback ---
+        teacher_comment = "Bra försök! Fortsätt öva på att motivera varje steg tydligare."
+        criteria_met, criteria_missed, improvement_suggestions = [], [], []
+
+        try:
+            if feedback_model and feedback_vectorizer:
+                teacher_data = pd.read_csv("klass9_matte_inlamningar_dataset.csv")
+                teacher_comment = ml_utils.generate_teacher_feedback(
+                    feedback_model,
+                    feedback_vectorizer,
+                    teacher_data["teacher_comment_sv"],
+                    submission.submission_text,
+                )
+        except Exception as e:
+            logger.warning(f"⚠️ Feedback generation failed: {e}")
+
+        # --- Simple AI rules for criteria met/missed ---
+        if reasoning_quality > 0.7:
+            criteria_met.append("God resonemangsförmåga")
+        else:
+            criteria_missed.append("Bristande resonemang")
+
+        if explanation_clarity > 0.7:
+            criteria_met.append("Tydlig förklaring")
+        else:
+            criteria_missed.append("Förklaring behöver utvecklas")
+
+        if method_appropriateness > 0.7:
+            criteria_met.append("Korrekt metodval")
+        else:
+            criteria_missed.append("Metodval behöver förbättras")
+
+        if computational_errors > 0:
+            improvement_suggestions.append("Kontrollera beräkningarna – ett eller flera räknefel upptäcktes.")
+
+        if conceptual_errors > 0:
+            improvement_suggestions.append("Gå igenom de matematiska begreppen för att undvika missförstånd.")
+
+        if not improvement_suggestions:
+            improvement_suggestions.append("Fortsätt på samma sätt! Du visar tydligt förståelse.")
+
+        # --- Save AI_Feedback ---
+        ai_feedback = AI_Feedback(
+            homework_submission_id=new_submission.id,
+            feedback_text=teacher_comment,
+            feedback_type="teacher_comment_sv",
+            criteria_met=", ".join(criteria_met),
+            criteria_missed=", ".join(criteria_missed),
+            improvement_suggestions=" ".join(improvement_suggestions),
+            model_used="EduMate_TeacherFeedback_v2",
+        )
+        db.add(ai_feedback)
+        db.commit()
+        db.refresh(ai_feedback)
+
+        # --- Save AI Score ---
+        ai_score = AI_Score(
+            homework_submission_id=new_submission.id,
+            predicted_score=int(rubric_points),
+            predicted_band=predicted_grade,
+            prediction_model_version="EduMate_RF_v1",
+            predicted_at=datetime.now(timezone.utc),
+            confidence_level=Decimal("0.95"),
+            analysis_data=json.dumps(features, ensure_ascii=False),
+        )
+        db.add(ai_score)
+        db.commit()
+        db.refresh(ai_score)
+
+        logger.info(f"✅ Submission {new_submission.id} processed — Grade: {predicted_grade}")
+
+        # --- Return API Response ---
+        return {
+            "submission_id": new_submission.id,
+            "predicted_grade": predicted_grade,
+            "rubric_points": rubric_points,
+            "ai_teacher_feedback": teacher_comment,
+            "criteria_met": criteria_met,
+            "criteria_missed": criteria_missed,
+            "improvement_suggestions": improvement_suggestions,
+            "confidence": 0.95,
+        }
+
     except Exception as e:
-        logger.error(f"Error creating submission: {str(e)}")
         db.rollback()
+        logger.error(f"❌ Error creating submission: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to create submission: {str(e)}")
 
 
+
+@app.get("/homework_submissions/all", response_model=List[dict])
+def get_all_homework_submissions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Fetch all homework submissions from the database.
+    """
+    # Ensure the user is authenticated
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    # Query all homework submissions
+    submissions = db.query(Homework_Submission).all()
+
+    # Format the response to ensure proper date handling
+    result = []
+    for submission in submissions:
+        result.append({
+            "id": submission.id,
+            "student_homework_id": submission.student_homework_id,
+            "submission_text": submission.submission_text,
+            "submission_file_id": submission.submission_file_id,
+            "submission_date": str(submission.submission_date),  # Ensure it's a string
+            "status": submission.status,
+            "is_late": submission.is_late,
+            "teacher_feedback": getattr(submission, 'teacher_feedback', None),
+            "grade_value": getattr(submission, 'grade_value', None)
+        })
+
+    return result
 # Get homework submissions with optional filtering
 @app.get("/homework_submissions/", response_model=list[dict])
 def get_homework_submissions(
@@ -1638,6 +1865,7 @@ def delete_subject_class_level(
     db.commit()
 
     return {"message": f"Subject_Class_Level with ID {subject_class_level_id} has been deleted successfully"} 
+# --- Grade Endpoints ---
 @app.post("/grades", response_model=GradeBase)
 def add_grade(
     grade_data: GradeCreate,
@@ -1645,7 +1873,7 @@ def add_grade(
     db: Session = Depends(get_db)
 ):
     """
-    Add a new grade to the database.
+    Add a new grade to the database and update the Homework_Submission table.
     """
     # Ensure the user has the necessary permissions (e.g., teacher)
     if current_user.role.name != "Teacher":
@@ -1667,7 +1895,20 @@ def add_grade(
     db.commit()
     db.refresh(new_grade)
 
+    # Update the Homework_Submission table with the grade and feedback
+    homework_submission = db.query(Homework_Submission).filter(
+        Homework_Submission.student_homework_id == grade_data.student_homework_id
+    ).first()
+
+    if homework_submission:
+        homework_submission.teacher_feedback = grade_data.feedback
+        homework_submission.status = "graded"  # Update the status to indicate grading is complete
+        homework_submission.grade_value = grade_data.grade  # Update the grade value
+        db.commit()
+        db.refresh(homework_submission)
+
     return new_grade
+# --- Student Endpoints ---
 students_router = APIRouter(prefix="/students", tags=["students"])
 
 @students_router.get("/by_user/{user_id}", response_model=StudentOut)
@@ -1705,7 +1946,38 @@ def get_my_betyg(
         .all()
     )
     return grades
-   
+@app.get("/grades/by_student/{student_id}", response_model=List[GradeBase])
+def get_grades_by_student(
+    student_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Fetch grades for a specific student by their student_id.
+    """
+    # Ensure the user is authenticated
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    # Role-based access control
+    if current_user.role.name == "Student" and current_user.id != student_id:
+        raise HTTPException(status_code=403, detail="Students can only access their own grades.")
+    elif current_user.role.name not in ["Teacher", "Admin"] and current_user.role.name != "Student":
+        raise HTTPException(status_code=403, detail="Not authorized to view grades.")
+
+    # Query grades for the specified student
+    grades = (
+        db.query(Grade)
+        .join(Student_Homework, Grade.student_homework_id == Student_Homework.id)
+        .filter(Student_Homework.student_id == student_id)
+        .all()
+    )
+
+    # If no grades are found, raise an exception
+    if not grades:
+        raise HTTPException(status_code=404, detail="No grades found for the specified student.")
+
+    return grades
 @app.get("/grades", response_model=List[GradeBase])
 def get_all_grades(
     current_user: User = Depends(get_current_user),  # Token validation and user authentication
@@ -1753,7 +2025,31 @@ def update_grade(
     db.refresh(grade)
 
     return grade
+# Get grade by submission_id
+@app.get("/grades/by_submission/{submission_id}", response_model=GradeBase)
+def get_grade_by_submission(
+    submission_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Fetch the grade for a specific homework submission by submission_id.
+    """
+    # Ensure the user is authenticated
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
+    # Query the Homework_Submission table to ensure the submission exists
+    submission = db.query(Homework_Submission).filter(Homework_Submission.id == submission_id).first()
+    if not submission:
+        raise HTTPException(status_code=404, detail="Homework submission not found")
+
+    # Query the Grade table to fetch the grade for the submission
+    grade = db.query(Grade).filter(Grade.student_homework_id == submission.student_homework_id).first()
+    if not grade:
+        raise HTTPException(status_code=404, detail="Grade not found for this submission")
+
+    return grade
 # by a student user id
 
 @app.get("/betyg/user/{user_id}", response_model=List[GradeBase])
@@ -2276,114 +2572,67 @@ def delete_recommended_resource(
 
 from ml_service import scoring_service  # Importera ScoringService-instansen
 
-@app.post("/ml/score", response_model=ScoreResponse)
-async def score_submission_t3(
-    request: ScoreRequest,
+# Endpoint to get AI score by submission_id
+@app.get("/ai_scores/by_submission/{submission_id}")
+def get_ai_score_by_submission(
+    submission_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    T3 API Contract: Score a student submission using AI/ML models
+    Fetch the latest AI score for a specific homework submission by submission_id.
     """
-    start_time = time.time()
+    # Ensure the user is authenticated
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
-    try:
-        # Validera att inlämningen existerar om submission_id är angivet
-        submission = None
-        if request.submission_id:
-            submission = db.query(Homework_Submission).filter(
-                Homework_Submission.id == request.submission_id
-            ).first()
-            if not submission:
-                raise HTTPException(status_code=404, detail="Submission not found")
+    # Query the AI_Score table to fetch the latest AI score for the submission
+    ai_score = db.query(AI_Score).filter(AI_Score.homework_submission_id == submission_id).order_by(AI_Score.predicted_at.desc()).first()
+    if not ai_score:
+        raise HTTPException(status_code=404, detail="AI score not found for this submission")
 
-        # Anropa ScoringService för att poängsätta inlämningen
-        scoring_result = scoring_service.score_submission(
-            submission_text=request.answer_text,
-            subject=request.subject
-        )
-
-        # Spara resultatet i databasen om submission_id är angivet
-        if request.submission_id and submission:
-            existing_score = db.query(AI_Score).filter(
-                AI_Score.homework_submission_id == request.submission_id
-            ).first()
-
-            if existing_score:
-                # Uppdatera befintlig post
-                existing_score.predicted_score = scoring_result.score
-                existing_score.predicted_band = scoring_result.band
-                existing_score.prediction_explainer = scoring_result.reason
-                existing_score.prediction_model_version = scoring_result.model_used
-                existing_score.predicted_at = datetime.now(timezone.utc)
-                existing_score.confidence_level = Decimal(str(scoring_result.confidence))
-                existing_score.updated_at = datetime.now(timezone.utc)
-            else:
-                # Skapa en ny post
-                ai_score = AI_Score(
-                    homework_submission_id=request.submission_id,
-                    predicted_score=scoring_result.score,
-                    predicted_band=scoring_result.band,
-                    prediction_explainer=scoring_result.reason,
-                    prediction_model_version=scoring_result.model_used,
-                    predicted_at=datetime.now(timezone.utc),
-                    confidence_level=Decimal(str(scoring_result.confidence)),
-                    model_used=scoring_result.model_used,
-                    analysis_data=json.dumps(scoring_result.analysis_data)
-                )
-                db.add(ai_score)
-
-            db.commit()
-
-        # Returnera resultatet
-        return ScoreResponse(
-            predicted_score=scoring_result.score,
-            predicted_band=scoring_result.band,
-            prediction_model_version=scoring_result.model_used,
-            prediction_explainer=scoring_result.reason
-        )
-
-    except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Model error: {str(e)}")
-
+    return ai_score
 # Keep your existing endpoints but update them to work with the new system
-@app.post("/api/ml/score-text")
-async def score_text_endpoint(
-    text: str = Query(..., description="Text to score"),
-    subject: str = Query("Mathematics", description="Subject area")
-):
-    """
-    Test endpoint to score any text without authentication.
-    Useful for testing and demonstrations.
-    """
-    try:
-        # Use the scoring service
-        prediction = scoring_service.score_submission(text, subject)
-        
-        return {
-            "predicted_score": prediction.score,
-            "predicted_band": prediction.band,
-            "confidence": prediction.confidence,
-            "reason": prediction.reason,
-            "processing_time_ms": prediction.processing_time_ms,
-            "model_used": prediction.model_used,
-            "analysis_breakdown": prediction.analysis_data
-        }
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI scoring failed: {str(e)}")
+@app.post("/ml/score", response_model=ScoreResponse)
+def score_endpoint(request: ScoreRequest, db: Session = Depends(get_db)):
+    scoring_service = ScoringService()
+
+    # Perform scoring
+    result = scoring_service.score_submission(request.text, request.subject)
+
+    # Save the AI score record
+    ai_score_record = scoring_service.create_ai_score_record(
+        db=db,
+        submission_id=request.submission_id,
+        result=result
+    )
+
+    return ScoreResponse(
+        submission_id=request.submission_id,
+        predicted_score=ai_score_record.predicted_score,
+        predicted_band=ai_score_record.predicted_band,
+        confidence=ai_score_record.confidence_level,
+        reason=ai_score_record.prediction_explainer,
+        processing_time_ms=123,  # Example placeholder
+        timestamp=ai_score_record.predicted_at,
+        model_used=ai_score_record.model_used
+    )
 
 # Health check endpoint
 @app.get("/api/ml/health")
 async def ml_health_check():
     """Check if the ML service is healthy"""
+    try:
+        _ = get_model()
+        _ = get_topic_encoder()
+        _ = get_feature_order()
+        status = "healthy"
+    except Exception as e:
+        status = f"unhealthy: {e}"
+
     return {
-        "status": "healthy",
-        "model_version": "tfidf_v1",
+        "status": status,
+        "model_version": "xgboost_json_v1",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "endpoints": {
             "score": "/ml/score",
@@ -2391,38 +2640,76 @@ async def ml_health_check():
             "health": "/api/ml/health"
         }
     }
+@app.post("/homework_submissions/{submission_id}/generate-feedback")
+def generate_feedback_for_submission(
+    submission_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generates AI feedback for a submission if none exists.
+    """
+    submission = db.query(Homework_Submission).filter_by(id=submission_id).first()
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
 
-# Feedback and resources data
-feedback_templates = {
-    "A": "Excellent work! Your solution is well-structured and demonstrates a deep understanding. Keep up the great work!",
-    "B": "Good job! Your solution is clear and mostly complete. Focus on refining details for an even better result.",
-    "C": "Your solution is acceptable but could use more detail and clarity. Review the key concepts and try to elaborate further.",
-    "D": "Your solution shows some understanding but lacks depth and structure. Consider revisiting the topic and practicing similar problems.",
-    "E": "Your solution is incomplete and misses key elements. Focus on understanding the basics and building a stronger foundation.",
-    "F": "Your solution does not meet the requirements. Start by reviewing the fundamental concepts and seek help if needed."
-}
+    # Check if feedback already exists
+    existing_feedback = (
+        db.query(AI_Feedback)
+        .filter(AI_Feedback.homework_submission_id == submission_id)
+        .first()
+    )
+    if existing_feedback:
+        return {
+            "message": "Feedback already exists",
+            "feedback": {
+                "feedback_text": existing_feedback.feedback_text,
+                "improvement_suggestions": existing_feedback.improvement_suggestions,
+                "created_at": existing_feedback.created_at
+            }
+        }
 
-recommended_resources = {
-    "mathematics": {
-        "A": [
-            {"title": "Advanced Algebra", "link": "https://www.khanacademy.org/math/algebra"},
-            {"title": "Challenging Math Problems", "link": "https://brilliant.org/"}
-        ],
-        "B": [
-            {"title": "Intermediate Algebra", "link": "https://www.khanacademy.org/math/algebra"},
-            {"title": "Practice Problems", "link": "https://www.ixl.com/math/"}
-        ],
-        # ... other grade bands ...
-    },
-    "science": {
-        "A": [
-            {"title": "Advanced Biology Topics", "link": "https://www.khanacademy.org/science/biology"},
-            {"title": "Scientific Research", "link": "https://www.nature.com/"}
-        ],
-        # ... other grade bands ...
+    # ⚙️ Example: simple mock feedback (replace this with your AI model call)
+    ai_feedback_text = (
+        "Bra jobbat! Din lösning visar förståelse för problemet, "
+        "men du kan utveckla resonemanget och visa fler steg i beräkningarna."
+    )
+    ai_suggestions = (
+        "Förbättra genom att visa alla uträkningar och förklara varför du valde dina metoder."
+    )
+
+    new_feedback = AI_Feedback(
+        homework_submission_id=submission_id,
+        feedback_text=ai_feedback_text,
+        feedback_type="AI",
+        improvement_suggestions=ai_suggestions,
+        created_at=datetime.now()
+    )
+
+    db.add(new_feedback)
+    db.commit()
+    db.refresh(new_feedback)
+
+    return {
+        "message": "✅ AI feedback generated successfully",
+        "feedback": {
+            "feedback_text": new_feedback.feedback_text,
+            "improvement_suggestions": new_feedback.improvement_suggestions,
+            "created_at": new_feedback.created_at
+        }
     }
-}
+@app.get("/homework_submissions/{submission_id}/feedback")
+def get_homework_feedback(submission_id: int, db: Session = Depends(get_db)):
+    """Return AI feedback for a specific homework submission."""
+    submission = db.query(Homework_Submission).filter(Homework_Submission.id == submission_id).first()
+    if not submission:
+        raise HTTPException(status_code=404, detail="Homework submission not found")
 
+    feedback = db.query(AI_Feedback).filter(AI_Feedback.homework_submission_id == submission_id).all()
+    if not feedback:
+        raise HTTPException(status_code=404, detail="No feedback found for this submission")
+
+    return feedback
 # Request and response models
 @app.post("/ml/feedback", response_model=FeedbackResponse)
 def get_feedback(
@@ -2520,6 +2807,8 @@ def save_feedback(request: SaveFeedbackRequest, db: Session = Depends(get_db)):
     db.commit()
 
     return {"message": "Feedback saved successfully"}
-app.include_router(student_hw_router)                                                             
+app.include_router(user_router) 
+app.include_router(student_hw_router)       
+                                                       
 if __name__ == '__main__':
     uvicorn.run(app)
