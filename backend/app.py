@@ -1617,14 +1617,19 @@ async def create_homework_submission(
 
         # --- Return API Response ---
         return {
-            "submission_id": new_submission.id,
+            "id": new_submission.id,
+            "student_homework_id": new_submission.student_homework_id,
+            "submission_date": new_submission.submission_date.isoformat() if new_submission.submission_date else None,
+
+            "status": new_submission.status,
+            "is_late": new_submission.is_late,
             "predicted_grade": predicted_grade,
             "rubric_points": rubric_points,
             "ai_teacher_feedback": teacher_comment,
             "criteria_met": criteria_met,
             "criteria_missed": criteria_missed,
             "improvement_suggestions": improvement_suggestions,
-            "confidence": 0.95,
+            "confidence": 0.95
         }
 
     except Exception as e:
