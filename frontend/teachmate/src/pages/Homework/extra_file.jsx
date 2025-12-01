@@ -102,7 +102,7 @@ const ManageHomework = () => {
       // Add or update homework
       if (editingHomeworkId) {
         const response = await axios.put(
-          `http://localhost:8000/homeworks/${editingHomeworkId}/`,
+          `http://${process.env.BASE_URL}:8000/homeworks/${editingHomeworkId}/`,
           payload,
           {
             headers: { Authorization: `Bearer ${token}` },
@@ -116,7 +116,7 @@ const ManageHomework = () => {
         setSuccessMessage("Homework updated successfully!");
       } else {
         const response = await axios.post(
-          "http://localhost:8000/homeworks/",
+          `http://${process.env.BASE_URL}:8000/homeworks/`,
           payload,
           {
             headers: { Authorization: `Bearer ${token}` },
@@ -150,7 +150,7 @@ const ManageHomework = () => {
   const handleDelete = async (homeworkId) => {
     const token = localStorage.getItem("token");
     try {
-      await axios.delete(`http://localhost:8000/homeworks/${homeworkId}/`, {
+      await axios.delete(`http://${process.env.BASE_URL}:8000/homeworks/${homeworkId}/`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setHomeworks((prevHomeworks) =>

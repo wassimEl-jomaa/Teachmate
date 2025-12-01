@@ -17,7 +17,7 @@ const ManageMemberships = () => {
     const fetchMemberships = async () => {
       const token = localStorage.getItem("token"); // Retrieve the token from localStorage
       try {
-        const response = await axios.get("http://localhost:8000/memberships/", {
+        const response = await axios.get(`http://${process.env.BASE_URL}:8000/memberships/`, {
           headers: {
             Authorization: `Bearer ${token}`, // Include the token in the Authorization header
           },
@@ -54,7 +54,7 @@ const ManageMemberships = () => {
       if (editingMembershipId) {
         // Update membership
         const response = await axios.put(
-          `http://localhost:8000/memberships/${editingMembershipId}/`,
+          `http://${process.env.BASE_URL}:8000/memberships/${editingMembershipId}/`,
           membershipData,
           {
             headers: {
@@ -71,7 +71,7 @@ const ManageMemberships = () => {
       } else {
         // Add new membership
         const response = await axios.post(
-          "http://localhost:8000/memberships/",
+          `http://${process.env.BASE_URL}:8000/memberships/`,
           membershipData,
           {
             headers: {
@@ -103,7 +103,7 @@ const ManageMemberships = () => {
   const handleDelete = async (membershipId) => {
     const token = localStorage.getItem("token"); // Retrieve the token from localStorage
     try {
-      await axios.delete(`http://localhost:8000/memberships/${membershipId}/`, {
+      await axios.delete(`http://${process.env.BASE_URL}:8000/memberships/${membershipId}/`, {
         headers: {
           Authorization: `Bearer ${token}`, // Include the token in the Authorization header
         },

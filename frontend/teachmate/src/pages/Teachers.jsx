@@ -14,7 +14,7 @@ const Teachers = ({ userId }) => {
     const fetchUserData = async () => {
       try {
         const response = await axios.get(
-          `http://localhost:8000/users/${userId}`,
+          `http://${process.env.BASE_URL}:8000/users/${userId}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,

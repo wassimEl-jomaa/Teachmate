@@ -10,7 +10,7 @@ const BetygPage = () => {
   const fetchBetyg = async () => {
     try {
       const token = localStorage.getItem("token"); // Retrieve the token from localStorage
-      const response = await axios.get("http://localhost:8000/betyg/me", {
+      const response = await axios.get(`http://${process.env.BASE_URL}:8000/betyg/me`, {
         headers: {
           Authorization: `Bearer ${token}`, // Include the token in the Authorization header
         },

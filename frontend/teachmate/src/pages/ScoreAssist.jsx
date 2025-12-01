@@ -15,7 +15,7 @@ const ScoreAssist = ({ submissionId, onPredictionLoaded }) => {
   const loadExistingPrediction = async () => {
     try {
       // Try to load existing prediction from your backend
-      const response = await fetch(`http://localhost:8000/api/ml/score-submission?submission_id=${submissionId}`, {
+      const response = await fetch(`http://${process.env.BASE_URL}:8000/api/ml/score-submission?submission_id=${submissionId}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json'
@@ -45,7 +45,7 @@ const ScoreAssist = ({ submissionId, onPredictionLoaded }) => {
     setError(null);
     
     try {
-      const response = await fetch('http://localhost:8000/api/ml/score-submission', {
+      const response = await fetch(`http://${process.env.BASE_URL}:8000/api/ml/score-submission`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,

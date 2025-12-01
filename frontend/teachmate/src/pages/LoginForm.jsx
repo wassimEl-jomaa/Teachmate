@@ -25,7 +25,7 @@ export default function LoginForm({
       setErrorMessage(""); // Clear error message if form is valid
       try {
         const response = await axios.post(
-          "http://localhost:8000/get_user_by_email_and_password",
+          `http://${process.env.BASE_URL}:8000/get_user_by_email_and_password`,
           {
             email,
             password,

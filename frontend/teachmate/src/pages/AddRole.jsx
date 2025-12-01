@@ -8,7 +8,7 @@ const AddRoles = () => {
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
 
-  const API_URL = "http://localhost:8000/roles";
+  const API_URL = `http://${process.env.BASE_URL}:8000/roles`;
   const token = localStorage.getItem("token");
 
   const headers = {

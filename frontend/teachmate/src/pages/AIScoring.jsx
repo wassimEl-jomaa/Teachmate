@@ -103,7 +103,7 @@ const AIScoring = () => {
 
     console.log("Payload being sent:", feedbackPayload); // Debugging log
 
-    await axios.post("http://localhost:8000/api/ml/save-feedback", feedbackPayload, {
+    await axios.post(`http://${process.env.BASE_URL}:8000/api/ml/save-feedback`, feedbackPayload, {
       headers: {
         Authorization: `Bearer ${localStorage.getItem("token")}`,
         "Content-Type": "application/json"
@@ -130,7 +130,7 @@ const AIScoring = () => {
       });
 
       const response = await axios.post(
-        `http://localhost:8000/api/ml/score-text?${params.toString()}`,
+        `http://${process.env.BASE_URL}:8000/api/ml/score-text?${params.toString()}`,
         {},
         {
           headers: {

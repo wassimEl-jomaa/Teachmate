@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const instance = axios.create({
-  baseURL: "http://localhost:8000", // Base URL for your backend
+  baseURL: `http://${process.env.BASE_URL}:8000`, // Base URL for your backend
 });
 
 // Add a request interceptor to include the token
