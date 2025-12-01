@@ -6,7 +6,7 @@ import uvicorn
 import app
 
 # Database setup
-DATABASE_URL = f"postgresql+psycopg2://postgres:Eva%eva1407@localhost:5432/edumate"  # Update with your actual database URL
+DATABASE_URL = f"postgresql+psycopg2://postgres:Eva%eva1407@localhost:5432/teachmate"  # Update with your actual database URL
 
 engine = create_engine(DATABASE_URL)  # For SQLite
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

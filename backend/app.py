@@ -8,7 +8,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi import Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials
-
+from pathlib import Path
 from joblib import logger
 import json
 
@@ -421,6 +421,47 @@ def update_user_view(
     database.refresh(user)
 
     return user 
+@user_router.post("/users/{user_id}/image", response_model=UserBase)
+async def upload_user_image(
+    user_id: int,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    database: Session = Depends(get_db),
+):
+    # 1) Check user exists
+    user = database.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # 2) Same permission rule as update_user_view
+    if current_user.id != user_id and current_user.role.name != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized to update this user")
+
+    # 3) Optional: validate file type (simple example)
+    allowed_types = {"image/jpeg", "image/png", "image/webp"}
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Only JPEG, PNG, WEBP allowed")
+
+    # 4) Save the file somewhere (e.g. ./media/profile_images)
+    media_root = Path("media/profile_images")
+    media_root.mkdir(parents=True, exist_ok=True)
+
+    ext = os.path.splitext(file.filename)[1] or ".jpg"
+    filename = f"user_{user_id}{ext}"
+    save_path = media_root / filename
+
+    with open(save_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    # 5) Store URL/path in the user model
+    # Adjust depending on how you serve static files:
+    # e.g. app.mount("/media", StaticFiles(directory="media"), name="media")
+    user.image = f"/media/profile_images/{filename}"
+
+    database.commit()
+    database.refresh(user)
+
+    return user
 # Get all roles
 @app.get("/roles", response_model=List[RoleBase])
 def read_all_roles(

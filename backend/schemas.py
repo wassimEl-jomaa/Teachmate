@@ -15,20 +15,20 @@ class GetUser(BaseModel):
 
 
 class UserBase(BaseModel):
-    id: Optional[int]  # To include the user ID if needed in the response
-    username: Optional[str]
-    first_name: Optional[str]
-    last_name: Optional[str]
-    email: Optional[str]
-    password: Optional[str]
-    phone_number: Optional[str]
-    role_id: Optional[int]  # Adding the role_id field
-    address: Optional[str]  # New field added to match User model
-    postal_code: Optional[str]  # New field added to match User model
-    city: Optional[str]  # New field added to match User model
-    country: Optional[str]  # New field added to match User model
+    id: int
+    username: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
+    phone_number: Optional[str] = None
+    address: Optional[str] = None
+    postal_code: Optional[str] = None
+    city: Optional[str] = None
+    country: Optional[str] = None
+    image: Optional[str] = None   # 👈 ADD THIS
+
     class Config:
-        from_attributes = True 
+        orm_mode = True
 
 
 
