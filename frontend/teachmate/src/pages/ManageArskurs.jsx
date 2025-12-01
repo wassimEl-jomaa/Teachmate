@@ -17,7 +17,7 @@ const ManageClassLevel = () => {
     const fetchClassLevels = async () => {
       const token = localStorage.getItem("token"); // Retrieve the token from localStorage
       try {
-        const response = await axios.get(`http://${process.env.BASE_URL}:8000/class_levels`, {
+        const response = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/class_levels`, {
           headers: {
             Authorization: `Bearer ${token}`, // Include the token in the Authorization header
           },
@@ -40,7 +40,7 @@ const ManageClassLevel = () => {
     const fetchSchools = async () => {
       const token = localStorage.getItem("token"); // Retrieve the token from localStorage
       try {
-        const response = await axios.get(`http://${process.env.BASE_URL}:8000/schools`, {
+        const response = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/schools`, {
           headers: {
             Authorization: `Bearer ${token}`, // Include the token in the Authorization header
           },
@@ -73,7 +73,7 @@ const ManageClassLevel = () => {
         // Update class level
         const response = await axios.put(
           // Use PUT instead of PATCH
-          `http://${process.env.BASE_URL}:8000/class_levels/${editingClassLevelId}`,
+          `${process.env.REACT_APP_BACKEND_URL}/class_levels/${editingClassLevelId}`,
           classLevelData,
           {
             headers: {
@@ -92,7 +92,7 @@ const ManageClassLevel = () => {
       } else {
         // Add class level
         const response = await axios.post(
-          `http://${process.env.BASE_URL}:8000/class_levels/`,
+          `${process.env.REACT_APP_BACKEND_URL}/class_levels/`,
           classLevelData,
           {
             headers: {
@@ -130,7 +130,7 @@ const ManageClassLevel = () => {
     const token = localStorage.getItem("token"); // Retrieve the token from localStorage
     try {
       await axios.delete(
-        `http://${process.env.BASE_URL}:8000/class_levels/${classLevelId}/`,
+        `${process.env.REACT_APP_BACKEND_URL}/class_levels/${classLevelId}/`,
         {
           headers: {
             Authorization: `Bearer ${token}`, // Include the token in the Authorization header

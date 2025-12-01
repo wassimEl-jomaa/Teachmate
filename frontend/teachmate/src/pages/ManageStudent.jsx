@@ -22,7 +22,7 @@ const ManageStudents = () => {
     const fetchStudents = async () => {
       const token = localStorage.getItem("token");
       try {
-        const response = await axios.get(`http://${process.env.BASE_URL}:8000/students/`, {
+        const response = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/students/`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -44,7 +44,7 @@ const ManageStudents = () => {
     const fetchArskurser = async () => {
       const token = localStorage.getItem("token");
       try {
-        const response = await axios.get(`http://${process.env.BASE_URL}:8000/arskurs/`, {
+        const response = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/arskurs/`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -76,7 +76,7 @@ const ManageStudents = () => {
       if (editingStudentId) {
         // Update student
         const response = await axios.patch(
-          `http://${process.env.BASE_URL}:8000/students/${editingStudentId}`,
+          `${process.env.REACT_APP_BACKEND_URL}/students/${editingStudentId}`,
           studentData,
           {
             headers: {
@@ -95,7 +95,7 @@ const ManageStudents = () => {
       } else {
         // Add student
         const response = await axios.post(
-          `http://${process.env.BASE_URL}:8000/students/`,
+          `${process.env.REACT_APP_BACKEND_URL}/students/`,
           studentData,
           {
             headers: {
@@ -134,7 +134,7 @@ const ManageStudents = () => {
   const handleDelete = async (studentId) => {
     const token = localStorage.getItem("token");
     try {
-      await axios.delete(`http://${process.env.BASE_URL}:8000/students/${studentId}/`, {
+      await axios.delete(`${process.env.REACT_APP_BACKEND_URL}/students/${studentId}/`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

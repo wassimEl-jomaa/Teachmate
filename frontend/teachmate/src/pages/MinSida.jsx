@@ -116,13 +116,13 @@ const MinSida = ({ userId }) => {
         const parsedUserId = parseInt(userIdRaw, 10);
 
         const studentRes = await axios.get(
-          `http://127.0.0.1:8000/students/by_user/${parsedUserId}`,
+          `${process.env.REACT_APP_BACKEND_URL}/students/by_user/${parsedUserId}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         setStudent(studentRes.data);
 
         const hwRes = await axios.get(
-          `http://127.0.0.1:8000/student_homeworks?student_id=${studentRes.data.id}`,
+          `${process.env.REACT_APP_BACKEND_URL}/student_homeworks?student_id=${studentRes.data.id}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         setHomeworks(hwRes.data);
@@ -141,7 +141,7 @@ const fetchGrade = async (submissionId) => {
     setLoadingGrade(true);
     const token = localStorage.getItem("token");
     const response = await axios.get(
-      `http://127.0.0.1:8000/grades/by_submission/${submissionId}`,
+      `${process.env.REACT_APP_BACKEND_URL}/grades/by_submission/${submissionId}`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
     console.log("Grade fetched:", response.data); // Debugging
@@ -158,7 +158,7 @@ const fetchAiScore = async (submissionId) => {
     setLoadingGrade(true);
     const token = localStorage.getItem("token");
     const response = await axios.get(
-      `http://127.0.0.1:8000/ai_scores/by_submission/${submissionId}`,
+      `${process.env.REACT_APP_BACKEND_URL}/ai_scores/by_submission/${submissionId}`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
     setAiScore(response.data);
@@ -183,7 +183,7 @@ const fetchAiScore = async (submissionId) => {
   try {
     const token = localStorage.getItem("token");
     const res = await axios.get(
-      `http://127.0.0.1:8000/homework_submissions/${homeworkSubmission.id}/feedback`,
+      `${process.env.REACT_APP_BACKEND_URL}/homework_submissions/${homeworkSubmission.id}/feedback`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
 
@@ -253,7 +253,7 @@ const fetchAiScore = async (submissionId) => {
     try {
       const token = localStorage.getItem("token");
       await axios.patch(
-        `http://127.0.0.1:8000/student_homeworks/${studentHomeworkId}/complete`,
+        `${process.env.REACT_APP_BACKEND_URL}/student_homeworks/${studentHomeworkId}/complete`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -271,7 +271,7 @@ const fetchAiScore = async (submissionId) => {
     const token = localStorage.getItem("token");
 
     const response = await axios.post(
-      "http://127.0.0.1:8000/api/ml/score-text",
+      `${process.env.REACT_APP_BACKEND_URL}/api/ml/score-text`,
       { text: submissionText },
       {
         headers: {
@@ -303,7 +303,7 @@ const fetchAiScore = async (submissionId) => {
 
     // Try to fetch existing feedback
     const getResponse = await axios.get(
-      `http://127.0.0.1:8000/homework_submissions/${homeworkSubmission.id}/feedback`,
+      `${process.env.REACT_APP_BACKEND_URL}/homework_submissions/${homeworkSubmission.id}/feedback`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
 
@@ -313,7 +313,7 @@ const fetchAiScore = async (submissionId) => {
     if (error.response?.status === 404) {
       console.warn("No feedback found, generating new one...");
       const postResponse = await axios.post(
-        `http://127.0.0.1:8000/homework_submissions/${homeworkSubmission.id}/generate-feedback`,
+        `${process.env.REACT_APP_BACKEND_URL}/homework_submissions/${homeworkSubmission.id}/generate-feedback`,
         {},
         { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
       );
@@ -334,7 +334,7 @@ const fetchAiScore = async (submissionId) => {
 
     const token = localStorage.getItem("token");
     const submissionRes = await axios.get(
-      `http://127.0.0.1:8000/homework_submissions/?student_homework_id=${studentHomework.id}`,
+      `${process.env.REACT_APP_BACKEND_URL}/homework_submissions/?student_homework_id=${studentHomework.id}`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
 
@@ -370,7 +370,7 @@ const fetchAiScore = async (submissionId) => {
   const handleViewSubmissionFile = async (fileId, fileName) => {
     try {
       const token = localStorage.getItem("token");
-      const response = await axios.get(`http://127.0.0.1:8000/files/${fileId}/download`, {
+      const response = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/files/${fileId}/download`, {
         headers: { Authorization: `Bearer ${token}` },
         responseType: "blob",
       });
@@ -415,7 +415,7 @@ const fetchAiScore = async (submissionId) => {
 
       try {
         const fileUploadRes = await axios.post(
-          "http://127.0.0.1:8000/file_attachments",
+          `${process.env.REACT_APP_BACKEND_URL}/file_attachments`,
           formData,
           { headers: { Authorization: `Bearer ${token}` }, timeout: 30000 }
         );
@@ -457,7 +457,7 @@ const fetchAiScore = async (submissionId) => {
 
     // 🚀 Submit to backend (predict grade)
     const submissionRes = await axios.post(
-      "http://127.0.0.1:8000/homework_submissions/",
+      `${process.env.REACT_APP_BACKEND_URL}/homework_submissions/`,
       submissionData,
       {
         headers: {

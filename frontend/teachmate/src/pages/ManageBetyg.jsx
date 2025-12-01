@@ -64,7 +64,7 @@ const ManageBetyg = ({ userId }) => {
       (async () => {
         setLoading(true);
         const res = await axios.get(
-          `http://127.0.0.1:8000/subject_class_levels?user_id=${teacherUserId}`,
+          `${process.env.REACT_APP_BACKEND_URL}/subject_class_levels?user_id=${teacherUserId}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         // unique class levels from subject_class_levels
@@ -83,8 +83,8 @@ const ManageBetyg = ({ userId }) => {
 
         // also load all grades & all student_homeworks once
         const [gradesRes, shRes] = await Promise.all([
-          axios.get("http://127.0.0.1:8000/grades", { headers: { Authorization: `Bearer ${token}` } }),
-          axios.get("http://127.0.0.1:8000/student_homeworks", { headers: { Authorization: `Bearer ${token}` } }),
+          axios.get(`${process.env.REACT_APP_BACKEND_URL}/grades`, { headers: { Authorization: `Bearer ${token}` } }),
+          axios.get(`${process.env.REACT_APP_BACKEND_URL}/student_homeworks`, { headers: { Authorization: `Bearer ${token}` } }),
         ]);
         setAllGrades(gradesRes.data || []);
         setStudentHomeworks(shRes.data || []);
@@ -107,7 +107,7 @@ const ManageBetyg = ({ userId }) => {
         setLoading(true);
         setErr("");
         const res = await axios.get(
-          `http://127.0.0.1:8000/students/class_level/${selectedClassLevelId}`,
+          `${process.env.REACT_APP_BACKEND_URL}/students/class_level/${selectedClassLevelId}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         setStudents(res.data || []);
@@ -134,7 +134,7 @@ const ManageBetyg = ({ userId }) => {
       // Fetch homework submission if exists
       try {
         const submissionRes = await axios.get(
-          `http://127.0.0.1:8000/homework_submissions/?student_homework_id=${studentHomework.id}`,
+          `${process.env.REACT_APP_BACKEND_URL}/homework_submissions/?student_homework_id=${studentHomework.id}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         if (submissionRes.data && submissionRes.data.length > 0) {
@@ -144,7 +144,7 @@ const ManageBetyg = ({ userId }) => {
           if (submission.submission_file_id) {
             try {
               const fileRes = await axios.get(
-                `http://127.0.0.1:8000/file_attachments/${submission.submission_file_id}`,
+                `${process.env.REACT_APP_BACKEND_URL}/file_attachments/${submission.submission_file_id}`,
                 { headers: { Authorization: `Bearer ${token}` } }
               );
               submission.file_details = fileRes.data;
@@ -185,7 +185,7 @@ const ManageBetyg = ({ userId }) => {
   const handleViewSubmissionFile = async (fileId, fileName) => {
     try {
       const response = await axios.get(
-        `http://127.0.0.1:8000/files/${fileId}/download`,
+        `${process.env.REACT_APP_BACKEND_URL}/files/${fileId}/download`,
         {
           headers: { Authorization: `Bearer ${token}` },
           responseType: 'blob'
@@ -228,7 +228,7 @@ const ManageBetyg = ({ userId }) => {
         feedback: newGrade.feedback || null,
         student_homework_id: Number(selectedStudentHwId),
       };
-      const res = await axios.post("http://127.0.0.1:8000/grades", payload, {
+      const res = await axios.post(`${process.env.REACT_APP_BACKEND_URL}/grades`, payload, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setAllGrades(prev => [...prev, res.data]);
@@ -257,7 +257,7 @@ const ManageBetyg = ({ userId }) => {
     try {
       setLoading(true);
       const res = await axios.put(
-        `http://127.0.0.1:8000/grades/${editingGradeId}`,
+        `${process.env.REACT_APP_BACKEND_URL}/grades/${editingGradeId}`,
         {
           grade: editForm.grade,
           description: editForm.description,
@@ -278,7 +278,7 @@ const ManageBetyg = ({ userId }) => {
   const deleteGrade = async (id) => {
     try {
       setLoading(true);
-      await axios.delete(`http://127.0.0.1:8000/grades/${id}`, {
+      await axios.delete(`${process.env.REACT_APP_BACKEND_URL}/grades/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setAllGrades(prev => prev.filter(g => g.id !== id));

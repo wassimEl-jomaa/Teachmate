@@ -67,7 +67,7 @@ const ShowAllHomework = () => {
     setLoading(true);
     setErrorMessage("");
     try {
-      const response = await axios.get("http://127.0.0.1:8000/student_homeworks", {
+      const response = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/student_homeworks`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setStudentHomeworks(response.data || []);
@@ -117,7 +117,7 @@ const ShowAllHomework = () => {
     const ok = window.confirm("Vill du radera denna elev-läxa?");
     if (!ok) return;
     try {
-      await axios.delete(`http://127.0.0.1:8000/student_homeworks/${id}`, {
+      await axios.delete(`${process.env.REACT_APP_BACKEND_URL}/student_homeworks/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       // Optimistic update
@@ -134,7 +134,7 @@ const ShowAllHomework = () => {
 
     try {
       await axios.put(
-        `http://127.0.0.1:8000/homework/${editingHomework.homework.id}/`,
+        `${process.env.REACT_APP_BACKEND_URL}/homework/${editingHomework.homework.id}/`,
         formData,
         { headers: { Authorization: `Bearer ${token}` } }
       );

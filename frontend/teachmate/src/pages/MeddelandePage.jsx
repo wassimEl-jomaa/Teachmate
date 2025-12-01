@@ -25,7 +25,7 @@ const MeddelandePage = ({ userId }) => {
     }
 
     axios
-      .get(`http://127.0.0.1:8000/meddelanden/user/${userId}`, {
+      .get(`${process.env.REACT_APP_BACKEND_URL}/meddelanden/user/${userId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -47,7 +47,7 @@ const MeddelandePage = ({ userId }) => {
     
     axios
       .put(
-        `http://127.0.0.1:8000/meddelanden/${meddelandeId}/?mark_as_read=true`,
+        `${process.env.REACT_APP_BACKEND_URL}/meddelanden/${meddelandeId}/?mark_as_read=true`,
         {},
         {
           headers: {

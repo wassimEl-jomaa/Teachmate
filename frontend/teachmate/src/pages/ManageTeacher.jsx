@@ -8,7 +8,7 @@ const ManageTeachers = () => {
 
   const fetchTeachers = async () => {
     const token = localStorage.getItem("token"); // Retrieve the token from localStorage
-    const url = "http://127.0.0.1:8000/teachers/"; // Backend endpoint for fetching teachers
+    const url = `${process.env.REACT_APP_BACKEND_URL}/teachers/`; // Backend endpoint for fetching teachers
     console.log("Fetching teachers from:", url);
 
     try {
@@ -40,7 +40,7 @@ const ManageTeachers = () => {
   const handleDelete = async (teacherId) => {
     const token = localStorage.getItem("token");
     try {
-      await axios.delete(`http://127.0.0.1:8000/teachers/${teacherId}/`, {
+      await axios.delete(`${process.env.REACT_APP_BACKEND_URL}/teachers/${teacherId}/`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

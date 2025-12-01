@@ -54,7 +54,7 @@ const AddHomeworkAllClass = () => {
         const token = localStorage.getItem("token");
         const [userId] = decodeToken(token).split("|");
         const res = await axios.get(
-          `http://127.0.0.1:8000/subject_class_levels?user_id=${userId}`,
+          `${process.env.REACT_APP_BACKEND_URL}/subject_class_levels?user_id=${userId}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         setSubjectClassLevels(res.data || []);
@@ -75,7 +75,7 @@ const AddHomeworkAllClass = () => {
       try {
         const token = localStorage.getItem("token");
         const res = await axios.get(
-          `http://127.0.0.1:8000/students/class_level/${classLevelId}`,
+          `${process.env.REACT_APP_BACKEND_URL}/students/class_level/${classLevelId}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         setStudents(res.data || []);
@@ -118,7 +118,7 @@ const AddHomeworkAllClass = () => {
 
     try {
       // 1) Create the homework once
-      const hwRes = await axios.post("http://127.0.0.1:8000/homework/", hwPayload, {
+      const hwRes = await axios.post(`${process.env.REACT_APP_BACKEND_URL}/homework/`, hwPayload, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const homeworkId = hwRes.data?.id;
@@ -130,7 +130,7 @@ const AddHomeworkAllClass = () => {
       const results = await Promise.allSettled(
         uniqueStudents.map((student) =>
           axios.post(
-            "http://127.0.0.1:8000/student_homeworks",
+            `${process.env.REACT_APP_BACKEND_URL}/student_homeworks`,
             { student_id: student.id, homework_id: homeworkId },
             { headers: { Authorization: `Bearer ${token}` } }
           )

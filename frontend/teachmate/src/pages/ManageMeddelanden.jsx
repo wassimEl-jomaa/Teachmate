@@ -91,7 +91,7 @@ const ManageMeddelanden = () => {
     const fetchHomeworks = async () => {
       const token = localStorage.getItem("token");
       try {
-        const res = await axios.get("http://127.0.0.1:8000/homeworks", {
+        const res = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/homeworks`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         console.log("All homeworks fetched:", res.data);
@@ -140,7 +140,7 @@ const ManageMeddelanden = () => {
         console.log("🔍 Edit mode: Student not found in current class, trying direct lookup...");
         
         // Try to get student info directly
-        axios.get(`http://127.0.0.1:8000/users/${meddelandeData.recipient_user_id}`, {
+        axios.get(`${process.env.REACT_APP_BACKEND_URL}/users/${meddelandeData.recipient_user_id}`, {
           headers: { Authorization: `Bearer ${token}` },
         })
         .then((userResponse) => {
@@ -150,7 +150,7 @@ const ManageMeddelanden = () => {
             
             // Fetch homeworks for this student
             return axios.get(
-              `http://127.0.0.1:8000/student_homeworks/?student_id=${studentId}`,
+              `${process.env.REACT_APP_BACKEND_URL}/student_homeworks/?student_id=${studentId}`,
               { headers: { Authorization: `Bearer ${token}` } }
             );
           }
@@ -183,11 +183,11 @@ const ManageMeddelanden = () => {
 
     console.log("=== FETCHING STUDENT HOMEWORKS ===");
     console.log("Student ID for API:", studentId);
-    console.log("API URL:", `http://127.0.0.1:8000/student_homeworks/?student_id=${studentId}`);
+    console.log("API URL:", `${process.env.REACT_APP_BACKEND_URL}/student_homeworks/?student_id=${studentId}`);
     
     axios
       .get(
-        `http://127.0.0.1:8000/student_homeworks/?student_id=${studentId}`,
+        `${process.env.REACT_APP_BACKEND_URL}/student_homeworks/?student_id=${studentId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       )
       .then((res) => {
@@ -231,7 +231,7 @@ const ManageMeddelanden = () => {
     const fetchClasses = async () => {
       const token = localStorage.getItem("token");
       try {
-        const res = await axios.get("http://127.0.0.1:8000/class_levels", {
+        const res = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/class_levels`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setClassList(res.data || []);
@@ -251,7 +251,7 @@ const ManageMeddelanden = () => {
     }
     const token = localStorage.getItem("token");
     axios
-      .get(`http://127.0.0.1:8000/students/class_level/${selectedClassId}`, {
+      .get(`${process.env.REACT_APP_BACKEND_URL}/students/class_level/${selectedClassId}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => setStudentsInClass(res.data || []))
@@ -266,7 +266,7 @@ const ManageMeddelanden = () => {
     const fetchMeddelanden = async () => {
       const token = localStorage.getItem("token");
       try {
-        const response = await axios.get("http://127.0.0.1:8000/meddelanden/", {
+        const response = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/meddelanden/`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setMeddelanden(response.data || []);
@@ -318,10 +318,10 @@ const ManageMeddelanden = () => {
         console.log("=== UPDATE PAYLOAD ===");
         console.log("Payload:", payload);
         console.log("Edit ID:", editingMeddelandeId);
-        console.log("URL:", `http://127.0.0.1:8000/meddelanden/${editingMeddelandeId}/`);
+        console.log("URL:", `${process.env.REACT_APP_BACKEND_URL}/meddelanden/${editingMeddelandeId}/`);
         
         response = await axios.put(
-          `http://127.0.0.1:8000/meddelanden/${editingMeddelandeId}/`,
+          `${process.env.REACT_APP_BACKEND_URL}/meddelanden/${editingMeddelandeId}/`,
           payload,
           { 
             headers: { 
@@ -347,7 +347,7 @@ const ManageMeddelanden = () => {
           const results = await Promise.all(
             studentsInClass.map((student) => {
               const payload = buildPayload(meddelandeData, student.user.id);
-              return axios.post("http://127.0.0.1:8000/meddelanden/", payload, {
+              return axios.post(`${process.env.REACT_APP_BACKEND_URL}/meddelanden/`, payload, {
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
               });
             })
@@ -356,7 +356,7 @@ const ManageMeddelanden = () => {
           setSuccessMessage(`Meddelanden skickades till ${results.length} elever!`);
         } else {
           const payload = buildPayload(meddelandeData);
-          response = await axios.post("http://127.0.0.1:8000/meddelanden/", payload, {
+          response = await axios.post(`${process.env.REACT_APP_BACKEND_URL}/meddelanden/`, payload, {
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           });
           setMeddelanden((prev) => [...prev, response.data]);
@@ -411,7 +411,7 @@ const ManageMeddelanden = () => {
 
     const token = localStorage.getItem("token");
     try {
-      await axios.delete(`http://127.0.0.1:8000/meddelanden/${meddelandeId}/`, {
+      await axios.delete(`${process.env.REACT_APP_BACKEND_URL}/meddelanden/${meddelandeId}/`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setMeddelanden((prev) => prev.filter((m) => m.id !== meddelandeId));
@@ -442,7 +442,7 @@ const ManageMeddelanden = () => {
       const token = localStorage.getItem("token");
       try {
         // First, get the user to find their class
-        const userResponse = await axios.get(`http://127.0.0.1:8000/users/${m.recipient_user_id}`, {
+        const userResponse = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/users/${m.recipient_user_id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         
@@ -455,7 +455,7 @@ const ManageMeddelanden = () => {
           
           // Fetch students in that class
           const studentsResponse = await axios.get(
-            `http://127.0.0.1:8000/students/class_level/${classLevelId}`,
+            `${process.env.REACT_APP_BACKEND_URL}/students/class_level/${classLevelId}`,
             { headers: { Authorization: `Bearer ${token}` } }
           );
           

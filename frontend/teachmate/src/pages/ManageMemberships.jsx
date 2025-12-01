@@ -17,7 +17,7 @@ const ManageMemberships = () => {
     const fetchMemberships = async () => {
       const token = localStorage.getItem("token"); // Retrieve the token from localStorage
       try {
-        const response = await axios.get(`http://${process.env.BASE_URL}:8000/memberships/`, {
+        const response = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/memberships/`, {
           headers: {
             Authorization: `Bearer ${token}`, // Include the token in the Authorization header
           },
@@ -54,7 +54,7 @@ const ManageMemberships = () => {
       if (editingMembershipId) {
         // Update membership
         const response = await axios.put(
-          `http://${process.env.BASE_URL}:8000/memberships/${editingMembershipId}/`,
+          `${process.env.REACT_APP_BACKEND_URL}/memberships/${editingMembershipId}/`,
           membershipData,
           {
             headers: {
@@ -71,7 +71,7 @@ const ManageMemberships = () => {
       } else {
         // Add new membership
         const response = await axios.post(
-          `http://${process.env.BASE_URL}:8000/memberships/`,
+          `${process.env.REACT_APP_BACKEND_URL}/memberships/`,
           membershipData,
           {
             headers: {
@@ -103,7 +103,7 @@ const ManageMemberships = () => {
   const handleDelete = async (membershipId) => {
     const token = localStorage.getItem("token"); // Retrieve the token from localStorage
     try {
-      await axios.delete(`http://${process.env.BASE_URL}:8000/memberships/${membershipId}/`, {
+      await axios.delete(`${process.env.REACT_APP_BACKEND_URL}/memberships/${membershipId}/`, {
         headers: {
           Authorization: `Bearer ${token}`, // Include the token in the Authorization header
         },

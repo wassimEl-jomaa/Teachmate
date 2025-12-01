@@ -44,7 +44,7 @@ const AddHomeworkOneStudent = () => {
       setErrorMessage("");
       try {
         const res = await axios.get(
-          `http://127.0.0.1:8000/subject_class_levels?user_id=${userId}`,
+          `${process.env.REACT_APP_BACKEND_URL}/subject_class_levels?user_id=${userId}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         setSubjectClassLevels(res.data || []);
@@ -69,7 +69,7 @@ const AddHomeworkOneStudent = () => {
       setErrorMessage("");
       try {
         const res = await axios.get(
-          `http://127.0.0.1:8000/students/class_level/${classLevelId}`,
+          `${process.env.REACT_APP_BACKEND_URL}/students/class_level/${classLevelId}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         setStudentNames(res.data || []);
@@ -105,7 +105,7 @@ const AddHomeworkOneStudent = () => {
         subject_class_level_id: parseInt(subjectClassLevelId, 10),
       };
 
-      const hwRes = await axios.post("http://127.0.0.1:8000/homework/", createHwBody, {
+      const hwRes = await axios.post(`${process.env.REACT_APP_BACKEND_URL}/homework/`, createHwBody, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -115,7 +115,7 @@ const AddHomeworkOneStudent = () => {
         homework_id: parseInt(hwRes.data?.id, 10),
       };
 
-      await axios.post("http://127.0.0.1:8000/student_homeworks", linkBody, {
+      await axios.post(`${process.env.REACT_APP_BACKEND_URL}/student_homeworks`, linkBody, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

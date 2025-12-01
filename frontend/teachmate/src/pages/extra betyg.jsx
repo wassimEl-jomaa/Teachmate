@@ -14,7 +14,7 @@ const ManageBetyg = () => {
   // Fetch all Betyg
   const fetchBetyg = async () => {
     try {
-      const response = await axios.get(`http://${process.env.BASE_URL}:8000/betyg/`);
+      const response = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/betyg/`);
       setBetygList(response.data);
     } catch (err) {
       setError("Failed to fetch betyg.");
@@ -30,7 +30,7 @@ const ManageBetyg = () => {
 
     try {
       const response = await axios.post(
-        `http://${process.env.BASE_URL}:8000/betyg/`,
+        `${process.env.REACT_APP_BACKEND_URL}/betyg/`,
         newBetyg
       );
       setBetygList([...betygList, response.data]);
@@ -44,7 +44,7 @@ const ManageBetyg = () => {
   // Delete a Betyg
   const deleteBetyg = async (id) => {
     try {
-      await axios.delete(`http://${process.env.BASE_URL}:8000/betyg/${id}`);
+      await axios.delete(`${process.env.REACT_APP_BACKEND_URL}/betyg/${id}`);
       setBetygList(betygList.filter((betyg) => betyg.id !== id));
     } catch (err) {
       setError("Failed to delete betyg.");

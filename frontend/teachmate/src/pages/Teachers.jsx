@@ -14,7 +14,7 @@ const Teachers = ({ userId }) => {
     const fetchUserData = async () => {
       try {
         const response = await axios.get(
-          `http://${process.env.BASE_URL}:8000/users/${userId}`,
+          `${process.env.REACT_APP_BACKEND_URL}/users/${userId}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,

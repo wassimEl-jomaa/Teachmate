@@ -4,7 +4,7 @@ module.exports = function(app) {
   app.use(
     '/betyg',
     createProxyMiddleware({
-      target: `http://${process.env.BASE_URL}:8000`,
+      target: `${process.env.REACT_APP_BACKEND_URL}`,
       changeOrigin: true,
     })
   );

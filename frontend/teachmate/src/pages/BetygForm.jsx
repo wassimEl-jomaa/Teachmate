@@ -9,7 +9,7 @@ const BetygForm = () => {
   useEffect(() => {
     const token = localStorage.getItem("token");
     axios
-      .get("http://127.0.0.1:8000/betyg/me", {
+      .get(`${process.env.REACT_APP_BACKEND_URL}/betyg/me`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

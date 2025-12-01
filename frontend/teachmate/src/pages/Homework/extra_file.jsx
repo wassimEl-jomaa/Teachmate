@@ -35,19 +35,19 @@ const ManageHomework = () => {
           homeworksResponse,
           studentHomeworksResponse, // New API call
         ] = await Promise.all([
-          axios.get("http://127.0.0.1:8000/teachers", {
+          axios.get(`${process.env.REACT_APP_BACKEND_URL}/teachers`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
-          axios.get("http://127.0.0.1:8000/subjects", {
+          axios.get(`${process.env.REACT_APP_BACKEND_URL}/subjects`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
-          axios.get("http://127.0.0.1:8000/class_levels", {
+          axios.get(`${process.env.REACT_APP_BACKEND_URL}/class_levels`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
-          axios.get("http://127.0.0.1:8000/homeworks", {
+          axios.get(`${process.env.REACT_APP_BACKEND_URL}/homeworks`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
-          axios.get("http://127.0.0.1:8000/student_homeworks", {
+          axios.get(`${process.env.REACT_APP_BACKEND_URL}/student_homeworks`, {
             // New endpoint
             headers: { Authorization: `Bearer ${token}` },
           }),
@@ -102,7 +102,7 @@ const ManageHomework = () => {
       // Add or update homework
       if (editingHomeworkId) {
         const response = await axios.put(
-          `http://${process.env.BASE_URL}:8000/homeworks/${editingHomeworkId}/`,
+          `${process.env.REACT_APP_BACKEND_URL}/homeworks/${editingHomeworkId}/`,
           payload,
           {
             headers: { Authorization: `Bearer ${token}` },
@@ -116,7 +116,7 @@ const ManageHomework = () => {
         setSuccessMessage("Homework updated successfully!");
       } else {
         const response = await axios.post(
-          `http://${process.env.BASE_URL}:8000/homeworks/`,
+          `${process.env.REACT_APP_BACKEND_URL}/homeworks/`,
           payload,
           {
             headers: { Authorization: `Bearer ${token}` },
@@ -150,7 +150,7 @@ const ManageHomework = () => {
   const handleDelete = async (homeworkId) => {
     const token = localStorage.getItem("token");
     try {
-      await axios.delete(`http://${process.env.BASE_URL}:8000/homeworks/${homeworkId}/`, {
+      await axios.delete(`${process.env.REACT_APP_BACKEND_URL}/homeworks/${homeworkId}/`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setHomeworks((prevHomeworks) =>

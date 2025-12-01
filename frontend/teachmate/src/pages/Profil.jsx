@@ -81,7 +81,7 @@ const Profil = ({ userId }) => {
         setErrorMessage("");
 
         const response = await axios.get(
-          `http://127.0.0.1:8000/users/${userId}`,
+          `${process.env.REACT_APP_BACKEND_URL}/users/${userId}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -100,7 +100,7 @@ const Profil = ({ userId }) => {
         if (response.data.role === "teacher") {
           try {
             const classesResponse = await axios.get(
-              `http://127.0.0.1:8000/class_levels/teacher/${userId}`,
+              `${process.env.REACT_APP_BACKEND_URL}/class_levels/teacher/${userId}`,
               {
                 headers: {
                   Authorization: `Bearer ${token}`,
@@ -185,7 +185,7 @@ const Profil = ({ userId }) => {
     setSuccessMessage("");
 
     const token = localStorage.getItem("token");
-    const url = `http://127.0.0.1:8000/users/${userId}`;
+    const url = `${process.env.REACT_APP_BACKEND_URL}/users/${userId}`;
 
     const baseFields = {
       first_name: user.first_name.trim(),
@@ -215,7 +215,7 @@ const Profil = ({ userId }) => {
       imgForm.append("file", imageFile); // "file" must match backend param name
 
       const imgResponse = await axios.post(
-        `http://127.0.0.1:8000/users/${userId}/image`,
+        `${process.env.REACT_APP_BACKEND_URL}/users/${userId}/image`,
         imgForm,
         {
           headers: {
@@ -271,7 +271,7 @@ const Profil = ({ userId }) => {
     if (userId) {
       const token = localStorage.getItem("token");
       axios
-        .get(`http://127.0.0.1:8000/users/${userId}`, {
+        .get(`${process.env.REACT_APP_BACKEND_URL}/users/${userId}`, {
           headers: { Authorization: `Bearer ${token}` },
         })
         .then((response) => setUser(response.data))

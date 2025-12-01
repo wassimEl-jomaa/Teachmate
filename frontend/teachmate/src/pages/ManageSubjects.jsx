@@ -16,7 +16,7 @@ const ManageSubjects = () => {
     const fetchSubjects = async () => {
       const token = localStorage.getItem("token"); // Retrieve the token from localStorage
       try {
-        const response = await axios.get(`http://${process.env.BASE_URL}:8000/subjects/`, {
+        const response = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/subjects/`, {
           headers: {
             Authorization: `Bearer ${token}`, // Include the token in the Authorization header
           },
@@ -47,7 +47,7 @@ const ManageSubjects = () => {
       if (editingSubjectId) {
         // Update subject
         const response = await axios.put(
-          `http://${process.env.BASE_URL}:8000/subjects/${editingSubjectId}/`,
+          `${process.env.REACT_APP_BACKEND_URL}/subjects/${editingSubjectId}/`,
           subjectData,
           {
             headers: {
@@ -64,7 +64,7 @@ const ManageSubjects = () => {
       } else {
         // Add new subject
         const response = await axios.post(
-          `http://${process.env.BASE_URL}:8000/subjects/`,
+          `${process.env.REACT_APP_BACKEND_URL}/subjects/`,
           subjectData,
           {
             headers: {
@@ -93,7 +93,7 @@ const ManageSubjects = () => {
   const handleDelete = async (subjectId) => {
     const token = localStorage.getItem("token"); // Retrieve the token from localStorage
     try {
-      await axios.delete(`http://${process.env.BASE_URL}:8000/subjects/${subjectId}/`, {
+      await axios.delete(`${process.env.REACT_APP_BACKEND_URL}/subjects/${subjectId}/`, {
         headers: {
           Authorization: `Bearer ${token}`, // Include the token in the Authorization header
         },

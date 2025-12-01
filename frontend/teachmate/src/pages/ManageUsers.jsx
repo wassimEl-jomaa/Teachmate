@@ -25,7 +25,7 @@ const ManageUsers = () => {
     const fetchUsers = async () => {
       const token = localStorage.getItem("token");
       try {
-        const response = await axios.get(`http://${process.env.BASE_URL}:8000/users/`, {
+        const response = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/users/`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -47,7 +47,7 @@ const ManageUsers = () => {
     const fetchArskurser = async () => {
       const token = localStorage.getItem("token");
       try {
-        const response = await axios.get(`http://${process.env.BASE_URL}:8000/class_levels`, {
+        const response = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/class_levels`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -79,7 +79,7 @@ const ManageUsers = () => {
       if (editingUserId) {
         // Update user
         const response = await axios.patch(
-          `http://${process.env.BASE_URL}:8000/users/${editingUserId}`,
+          `${process.env.REACT_APP_BACKEND_URL}/users/${editingUserId}`,
           userData,
           {
             headers: {
@@ -98,7 +98,7 @@ const ManageUsers = () => {
       } else {
         // Add new user
         const response = await axios.post(
-          `http://${process.env.BASE_URL}:8000/users/`,
+          `${process.env.REACT_APP_BACKEND_URL}/users/`,
           userData,
           {
             headers: {
@@ -140,7 +140,7 @@ const ManageUsers = () => {
   const handleDelete = async (userId) => {
     const token = localStorage.getItem("token");
     try {
-      await axios.delete(`http://${process.env.BASE_URL}:8000/users/${userId}/`, {
+      await axios.delete(`${process.env.REACT_APP_BACKEND_URL}/users/${userId}/`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

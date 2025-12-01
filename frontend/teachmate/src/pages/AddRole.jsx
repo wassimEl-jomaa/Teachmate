@@ -8,7 +8,7 @@ const AddRoles = () => {
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
 
-  const API_URL = `http://${process.env.BASE_URL}:8000/roles`;
+  const API_URL = `${process.env.REACT_APP_BACKEND_URL}/roles`;
   const token = localStorage.getItem("token");
 
   const headers = {
