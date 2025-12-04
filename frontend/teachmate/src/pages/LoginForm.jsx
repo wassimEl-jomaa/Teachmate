@@ -122,7 +122,7 @@ export default function LoginForm({
           {/* Registration Link */}
           <div className="mt-4 text-center">
             <p className="text-sm text-gray-700">
-              Don't have an account?
+              Don't have an account? 
               <Link
                 to="/register"
                 className="text-blue-500 hover:text-blue-700"
