@@ -1,5 +1,5 @@
-🎓 EduMate – AI-Driven Homework Feedback System
-EduMate is an intelligent education platform that uses machine learning (ML) and NLP to analyze student homework submissions, predict grades, and generate automated feedback for teachers and students.
+🎓 Teachmate – AI-Driven Homework Feedback System
+Teachmate is an intelligent education platform that uses machine learning (ML) and NLP to analyze student homework submissions, predict grades, and generate automated feedback for teachers and students.
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
@@ -82,3 +82,4 @@ python -m uvicorn app:app --reload
 👉 http://127.0.0.1:8000/docs
 
 Use the interactive Swagger UI to test endpoints.
+wasim.el-jomaa@studerande.plushogskolan.se

@@ -1,0 +1,3 @@
+#Databasen är inte hel. Exportera en ny databas
+#Fixa Websocket connection problem
+#CORS problem när WWW används.

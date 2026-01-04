@@ -43,40 +43,13 @@ const HurDetFungerarSektion = () => {
             </p>
           </div>
           <img
-            src="/compass.png"
+            src="/kommunikation_planering.png"
             alt="Struktur för planering"
             className="sm:w-1/3 w-full h-auto object-cover rounded-md mt-6 sm:mt-0 sm:ml-6"
           />
         </div>
 
-        {/* Punkt Två */}
-        <div className="flex flex-col sm:flex-row items-center bg-white p-6 border rounded-lg shadow-md">
-          <div className="sm:w-2/3">
-            <h2 className="text-2xl font-semibold">
-              Sömlösa integrationer med Google och Microsoft 365
-            </h2>
-            <p className="mt-4 text-gray-700">
-              En av de stora fördelarna med vår plattform är den sömlösa
-              integrationen med både Google och Microsoft 365. Denna integration
-              gör att gränserna mellan vårt system och de molntjänster ni
-              använder blir suddiga, vilket ger en upplevelse av att allt är
-              samlat i ett system. Till exempel, om ni laddar upp en fil i
-              Google Drive, kan ni enkelt komma åt den direkt genom vår
-              plattform, utan att behöva öppna Google Drive separat. Det
-              fungerar på samma sätt med OneDrive. Genom att logga in med ert
-              Google-konto eller Microsoft 365-konto får ni tillgång till alla
-              filer direkt via vår plattform, vilket gör arbetsflödet både
-              smidigare och mer effektivt. Detta gör det möjligt för er att
-              arbeta i en miljö där allt är kopplat, vilket sparar tid och gör
-              samarbetet mer enhetligt.
-            </p>
-          </div>
-          <img
-            src="/EduMate-Google-classroom.jpg"
-            alt="Integrationer med Google och Microsoft"
-            className="sm:w-1/3 w-full h-auto object-cover rounded-md mt-6 sm:mt-0 sm:ml-6"
-          />
-        </div>
+        
 
         {/* Punkt Tre */}
         <div className="flex flex-col sm:flex-row items-center bg-white p-6 border rounded-lg shadow-md">
@@ -103,7 +76,7 @@ const HurDetFungerarSektion = () => {
             </p>
           </div>
           <img
-            src="forskolan-analys.jpg.webp"
+            src="Analysverktyg.png"
             alt="Analysverktyg"
             className="sm:w-1/3 w-full h-auto object-cover rounded-md mt-6 sm:mt-0 sm:ml-6"
           />

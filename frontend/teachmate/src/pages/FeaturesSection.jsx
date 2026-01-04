@@ -25,7 +25,7 @@ const FeaturesSection = () => {
           </p>
         </div>
         <img
-          src="grundskolan.jpg"
+          src="Digital.png"
           alt="Välkommen"
           className="sm:w-1/3 w-full h-auto object-cover rounded-md mt-6 sm:mt-0 sm:ml-6"
         />
@@ -79,7 +79,7 @@ const FeaturesSection = () => {
           </p>
         </div>
         <img
-          src="/Upptäck.jpeg"
+          src="/upptäck.png"
           alt="Funktioner"
           className="sm:w-1/3 w-full h-auto object-cover rounded-md mt-6 sm:mt-0 sm:ml-6"
         />
